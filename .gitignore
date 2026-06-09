@@ -1,0 +1,7 @@
+node_modules/
+*.log
+*.pid
+*.cc-pet-preview
+*.cc-pet-tmp
+pet/dist/
+.DS_Store

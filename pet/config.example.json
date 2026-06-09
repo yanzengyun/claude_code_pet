@@ -1,0 +1,22 @@
+{
+  "_说明": "把本文件复制成 ~/.cc-pet/config.json 或 pet/config.json 后按需修改。两种连 vibe 的方式二选一。",
+
+  "_方式A_SSH隧道_推荐": "Mac 上先跑：ssh -N -L 47600:127.0.0.1:47600 <你>@vibe.corp.tujia.com；然后 url 用下面的 localhost。最稳，无需 SSO。",
+  "_方式B_代理SSO": "不开隧道：url 用 vibe 代理地址，并设 ssoOrigin；启动后点托盘『登录 vibe』登录一次，cookie 复用即可连。",
+
+  "primary": {
+    "name": "vibe",
+    "url": "http://127.0.0.1:47600",
+    "_url_方式B示例": "https://vibe.corp.tujia.com/zengyuny/proxy/47600",
+    "token": ""
+  },
+
+  "ssoOrigin": "",
+  "_ssoOrigin_方式B示例": "https://vibe.corp.tujia.com",
+
+  "soundOnWaiting": true,
+  "soundOnDone": false,
+  "notifyOnWaiting": true,
+  "notifyOnDone": true,
+  "window": { "width": 168, "height": 210 }
+}

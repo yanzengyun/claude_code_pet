@@ -1,0 +1,9 @@
+{
+  "primary": { "name": "vibe", "url": "http://127.0.0.1:47600", "token": "" },
+  "soundOnWaiting": true,
+  "soundOnDone": false,
+  "notifyOnWaiting": true,
+  "notifyOnDone": true,
+  "ssoOrigin": "",
+  "window": { "width": 168, "height": 210 }
+}

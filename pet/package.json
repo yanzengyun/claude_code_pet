@@ -1,0 +1,23 @@
+{
+  "name": "claude-desktop-pet",
+  "version": "0.1.0",
+  "description": "Claude 官方风格桌宠 — 监控本地/远程 Claude Code 运行状态",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "author": "zengyuny",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.zengyuny.claudepet",
+    "productName": "Claude Pet",
+    "mac": { "category": "public.app-category.developer-tools", "target": ["dmg"] },
+    "files": ["main.js", "preload.js", "renderer/**", "assets/**", "config.json"]
+  }
+}

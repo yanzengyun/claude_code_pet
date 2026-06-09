@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Claude Pet</title>
+  <link rel="stylesheet" href="pet.css" />
+</head>
+<body>
+  <!-- 拖拽热区 = 整个小人；transparent 窗口由 Electron 提供 -->
+  <div id="pet" class="pet" data-state="idle" title="Claude">
+    <!-- 头顶 spark（思考时旋转），由 JS 注入 blades -->
+    <div class="spark" id="spark"></div>
+
+    <!-- 身体 -->
+    <div class="body">
+      <div class="face">
+        <div class="eye eye-l"><span class="pupil"></span></div>
+        <div class="eye eye-r"><span class="pupil"></span></div>
+        <div class="mouth"></div>
+        <div class="cheek cheek-l"></div>
+        <div class="cheek cheek-r"></div>
+      </div>
+      <!-- working 时的打字点 -->
+      <div class="dots"><i></i><i></i><i></i></div>
+    </div>
+
+    <!-- 地面投影 -->
+    <div class="shadow"></div>
+
+    <!-- 气泡：waiting / done 文案 -->
+    <div class="bubble" id="bubble"><span id="bubbleText"></span></div>
+
+    <!-- done 时的庆祝光环 -->
+    <div class="celebrate" id="celebrate"></div>
+  </div>
+
+  <!-- 点击展开：当前 session 列表 -->
+  <div id="panel" class="panel" hidden>
+    <div class="panel-head">
+      <span class="wordmark">Claude</span>
+      <span class="panel-dot" id="panelDot"></span>
+      <span class="panel-status" id="panelStatus">idle</span>
+    </div>
+    <ul class="sessions" id="sessions"></ul>
+    <div class="panel-foot">
+      <span id="connState" class="conn">●</span>
+      <span id="connText">connecting…</span>
+    </div>
+  </div>
+
+  <script src="pet.js"></script>
+</body>
+</html>
