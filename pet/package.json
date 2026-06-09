@@ -6,7 +6,9 @@
   "scripts": {
     "start": "electron .",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "dist": "electron-builder --mac dmg",
+    "dist:arm": "electron-builder --mac dmg --arm64",
+    "dist:intel": "electron-builder --mac dmg --x64"
   },
   "author": "zengyuny",
   "license": "MIT",
@@ -17,7 +19,24 @@
   "build": {
     "appId": "com.zengyuny.claudepet",
     "productName": "Claude Pet",
-    "mac": { "category": "public.app-category.developer-tools", "target": ["dmg"] },
-    "files": ["main.js", "preload.js", "renderer/**", "assets/**", "config.json"]
+    "directories": { "output": "dist" },
+    "files": ["main.js", "preload.js", "renderer/**", "assets/**", "config.json"],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "assets/icon.png",
+      "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }],
+      "identity": null,
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "dmg": {
+      "title": "Claude Pet",
+      "icon": "assets/icon.png",
+      "window": { "width": 540, "height": 380 },
+      "contents": [
+        { "x": 150, "y": 200, "type": "file" },
+        { "x": 390, "y": 200, "type": "link", "path": "/Applications" }
+      ]
+    }
   }
 }

@@ -47,6 +47,21 @@ npm start              # 启动桌宠
 
 启动后右下角出现 Claude 小人，菜单栏有一个 spark 托盘图标（显示/隐藏、登录、退出）。
 
+### 打包成 .dmg（双击安装版）
+
+`.dmg` **只能在 macOS 上构建**（依赖 mac 专有的 `hdiutil`/`iconutil`），所以这步在你的 Mac 上做：
+
+```bash
+cd claude-desktop-pet/pet
+bash build-dmg.sh          # 同时出 arm64 + x64；或 build-dmg.sh arm / intel 只出一个
+# 产物在 pet/dist/Claude Pet-0.1.0-*.dmg
+```
+- 脚本自动 `npm install` + `electron-builder --mac dmg`，应用图标已内置（`assets/icon.png`，cream 圆角瓷砖 + Claude 小人）。
+- 安装：双击 dmg → 把「Claude Pet」拖进 Applications。
+- 这是**未签名**应用，首次打开被 Gatekeeper 拦时二选一：
+  右键 App →「打开」→ 再点「打开」；或终端 `xattr -cr "/Applications/Claude Pet.app"`。
+- 装好后 App 自带托盘常驻，不再依赖 `npm start`；连接配置读 `~/.cc-pet/config.json`（没有则用 App 内置默认）。
+
 ---
 
 ## 三、让 Mac 的桌宠连上 vibe 的 agent（二选一）
