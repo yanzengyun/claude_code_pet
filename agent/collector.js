@@ -110,6 +110,11 @@ function slugMatches(slug, includes) {
   return includes.some((inc) => slug.includes(inc));
 }
 
+/** cwd 路径 → projects 目录的 slug 形式（/home/q/x → -home-q-x），供 hook 事件按 slugIncludes 过滤 */
+function cwdToSlug(cwd) {
+  return String(cwd || '').replace(/[^A-Za-z0-9-]/g, '-');
+}
+
 /** 在 projects 目录里找 <sessionId>.jsonl，返回 {path, mtimeMs, slug} 或 null */
 function findSessionFile(claudeHome, sessionId, includes) {
   const projectsDir = path.join(claudeHome, 'projects');
@@ -263,4 +268,6 @@ module.exports = {
   recentSessionFiles,
   readJiffies,
   defaultClaudeHome,
+  slugMatches,
+  cwdToSlug,
 };

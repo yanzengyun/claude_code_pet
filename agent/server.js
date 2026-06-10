@@ -11,7 +11,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { scanSessions } = require('./collector.js');
+const { scanSessions, slugMatches, cwdToSlug } = require('./collector.js');
 const { aggregate } = require('./state.js');
 
 function loadConfig() {
@@ -136,7 +136,11 @@ const server = http.createServer((req, res) => {
       try { d = JSON.parse(body || '{}'); } catch { return sendJson(res, 400, { error: 'bad json' }); }
       const sid = d.sessionId || d.session_id;
       const event = d.event || d.hook_event_name;
-      if (sid && event) {
+      // hooks 装在共享 settings 里，所有人的会话都会发事件过来；
+      // 与 collector 同口径按 slugIncludes 过滤，只收自己项目的（无 cwd 的丢弃）
+      const inScope = !cfg.slugIncludes || cfg.slugIncludes.length === 0
+        || (d.cwd && slugMatches(cwdToSlug(d.cwd), cfg.slugIncludes));
+      if (sid && event && inScope) {
         hookState[sid] = {
           event, ts: Date.now(),
           cwd: d.cwd || null,
