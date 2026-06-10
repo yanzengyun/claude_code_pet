@@ -136,6 +136,41 @@ cd claude-desktop-pet/hooks
 
 ---
 
+## 六、多人共用与二次开发（同机其他同学看这里）
+
+vibe 是共享机，**hooks 是机器级共享设施**——已经装好、对所有人的会话都在发事件，
+你**不需要重装 hooks，也不要动 settings.json**。你要做的只是：跑一个自己的 agent + 注册进广播列表。
+
+```bash
+# 1. clone 一份（或 fork）
+git clone https://github.com/yanzengyun/claude_code_pet.git
+cd claude_code_pet
+
+# 2. 改 agent/config.json 两个字段：
+#    "port": 477XX                                ← 挑个没人用的端口（47600 已被占用）
+#    "slugIncludes": ["-home-q-vibe-projects-<你的目录名>"]   ← 只收自己项目的会话
+vim agent/config.json
+
+# 3. 启动自己的 agent（pid/日志按端口隔离，不会和别人打架）
+bash agent/start.sh
+curl http://127.0.0.1:477XX/status
+
+# 4. 注册进 hook 广播列表（一行搞定，立即生效，所有 hook 事件会同时发给你）
+echo "http://127.0.0.1:477XX" >> ~/.cc-pet/agents.list
+```
+
+然后 Mac 侧照第二、三节做，把端口换成你自己的（隧道：`ssh -N -L 477XX:127.0.0.1:477XX 你@主机`）。
+
+原理与边界：
+
+- hook 脚本（`hooks/cc-pet-notify.sh`）把每个事件**广播**给 `~/.cc-pet/agents.list` 里的所有 agent
+  （后台 + 1 秒超时，谁挂了都不影响别人、更不阻塞 Claude Code）。
+- 每个 agent 用自己的 `slugIncludes` 过滤，**只收自己项目的事件**，互相看不到对方会话。
+- 想换形象：参考 `pet/renderer/skins.js`（字符画→像素，画左半边自动镜像）+ `skin-squirtle.css`
+  （状态→帧的映射），加一套新皮肤大约就是一张字符画 + 一个 CSS 文件的事。
+
+---
+
 ## 状态判定逻辑（简述）
 
 - **基线**：扫 `claude` 进程（`--resume <id>` 关联会话）+ `/proc` CPU 增量判「此刻在算」+ 读会话

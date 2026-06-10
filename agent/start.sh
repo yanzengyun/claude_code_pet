@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # start.sh — 在当前机器（如 vibe）后台启动 cc-pet-agent。幂等。
+# pid/日志按端口隔离，同机多人各跑各的互不影响。
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-PIDFILE="${CC_PET_PIDFILE:-/tmp/cc-pet-agent.pid}"
-LOG="${CC_PET_LOG:-/tmp/cc-pet-agent.log}"
 PORT="$(node -e 'try{process.stdout.write(String((require("'"$HERE"'/config.json").port)||47600))}catch(e){process.stdout.write("47600")}')"
+PIDFILE="${CC_PET_PIDFILE:-/tmp/cc-pet-agent-$PORT.pid}"
+LOG="${CC_PET_LOG:-/tmp/cc-pet-agent-$PORT.log}"
 
 if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then
   echo "已在运行 pid=$(cat "$PIDFILE")（port $PORT）"; exit 0
