@@ -1,0 +1,362 @@
+/* Claude Pet — Anthropic 官方风格：terracotta spark + 暖米白，圆润亲和 */
+
+:root {
+  --terra:       #cc785c;  /* Claude 标志赤陶 */
+  --terra-deep:  #b05c40;
+  --terra-dark:  #8f4630;
+  --terra-light: #e0997f;
+  --terra-glow:  #f0a98c;
+  --cream:       #f4f1ea;
+  --cream-deep:  #e8e3d6;
+  --ink:         #2b2622;  /* 眼睛/嘴的暖墨 */
+  --alert:       #e2703a;  /* waiting 警示橙 */
+  --gold:        #e3b341;  /* done 庆祝金 */
+  --offline:     #9b958c;
+  --shadow:      rgba(94, 52, 36, 0.22);
+  --ui-serif: "Hoefler Text", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --ui-sans: "Avenir Next", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%; height: 100vh;
+  background: transparent;            /* Electron 透明窗 */
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+body {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+/* 面板打开时窗口被 main 加宽：小人保持原位，面板占旁边的扩展区 */
+body[data-panel-side='left'] .panel { order: -1; }
+
+/* ============ 桌宠主体 ============ */
+.pet {
+  position: relative;
+  margin-bottom: 12px;
+  width: 132px; height: 168px;
+  cursor: grab;                      /* 拖动/点击由 pet.js 手动处理（drag 区域会吞掉 click） */
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: flex-end;
+}
+
+/* ---- 地面投影 ---- */
+.shadow {
+  position: absolute; bottom: 6px; left: 50%;
+  width: 78px; height: 16px;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at center, var(--shadow) 0%, transparent 70%);
+  filter: blur(0.5px);
+  animation: shadowPulse 3.6s ease-in-out infinite;
+}
+
+/* ---- 头顶 spark（Anthropic 星芒） ---- */
+.spark {
+  position: relative;
+  width: 56px; height: 56px;
+  margin-bottom: -8px;
+  z-index: 3;
+  transform-origin: 50% 50%;
+  animation: sparkDrift 3.6s ease-in-out infinite;
+}
+.spark svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.spark .blade { fill: var(--terra); transform-origin: 28px 28px; transition: fill .3s ease; }
+.spark .core  { fill: var(--terra-glow); }
+
+/* ---- 身体 ---- */
+.body {
+  position: relative;
+  width: 104px; height: 96px;
+  border-radius: 48% 48% 46% 46% / 54% 54% 46% 46%;
+  background:
+    radial-gradient(120% 120% at 32% 26%, var(--terra-light) 0%, var(--terra) 46%, var(--terra-deep) 100%);
+  box-shadow:
+    inset 6px 8px 14px rgba(255, 228, 214, 0.45),
+    inset -6px -10px 16px rgba(120, 56, 34, 0.40),
+    0 10px 20px var(--shadow);
+  z-index: 2;
+  animation: breathe 3.6s ease-in-out infinite;
+}
+/* 顶部高光 */
+.body::before {
+  content: ""; position: absolute;
+  top: 12px; left: 22px; width: 34px; height: 22px;
+  background: radial-gradient(ellipse at center, rgba(255,240,232,0.75), transparent 70%);
+  border-radius: 50%;
+  filter: blur(1px);
+}
+
+/* ---- 脸 ---- */
+.face { position: absolute; inset: 0; }
+
+.eye {
+  position: absolute; top: 44px;
+  width: 13px; height: 17px;
+  background: var(--ink);
+  border-radius: 48%;
+  overflow: hidden;
+  animation: blink 5.2s ease-in-out infinite;
+}
+.eye-l { left: 31px; }
+.eye-r { right: 31px; }
+.pupil {
+  position: absolute; top: 3px; left: 3px;
+  width: 5px; height: 5px;
+  background: rgba(255,245,238,0.92);
+  border-radius: 50%;
+}
+
+.mouth {
+  position: absolute; top: 64px; left: 50%;
+  width: 16px; height: 8px;
+  transform: translateX(-50%);
+  border: 2.5px solid var(--ink);
+  border-top: none;
+  border-radius: 0 0 16px 16px;
+  transition: all .25s ease;
+}
+
+.cheek {
+  position: absolute; top: 58px;
+  width: 12px; height: 7px;
+  background: rgba(240, 150, 120, 0.5);
+  border-radius: 50%;
+  filter: blur(1.5px);
+  opacity: 0;
+  transition: opacity .3s ease;
+}
+.cheek-l { left: 20px; }
+.cheek-r { right: 20px; }
+
+/* ---- working 打字点 ---- */
+.dots {
+  position: absolute; bottom: -4px; left: 50%;
+  transform: translateX(-50%);
+  display: none; gap: 5px;
+  z-index: 4;
+}
+.dots i {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--cream);
+  box-shadow: 0 1px 3px var(--shadow);
+}
+
+/* ---- 气泡 ---- */
+.bubble {
+  position: absolute; top: 2px; right: -6px;
+  min-width: 26px; max-width: 150px;
+  padding: 6px 10px;
+  background: var(--cream);
+  color: var(--terra-dark);
+  font-family: var(--ui-sans);
+  font-size: 12px; font-weight: 600; line-height: 1.3;
+  border-radius: 12px;
+  box-shadow: 0 6px 16px var(--shadow);
+  opacity: 0; transform: scale(0.6) translateY(6px);
+  transform-origin: bottom left;
+  pointer-events: none;
+  z-index: 6;
+  white-space: nowrap;
+}
+.bubble::after {
+  content: ""; position: absolute; left: 14px; bottom: -6px;
+  border: 6px solid transparent;
+  border-top-color: var(--cream);
+  border-bottom: none;
+}
+
+/* ---- done 庆祝光环 ---- */
+.celebrate {
+  position: absolute; top: 38px; left: 50%;
+  width: 104px; height: 104px;
+  transform: translate(-50%, 0);
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 1;
+}
+
+/* =================================================================
+   状态机：data-state 驱动
+   ================================================================= */
+
+/* ---------- WORKING：spark 快转 + 打字点 + 专注 ---------- */
+.pet[data-state="working"] .spark { animation: sparkSpin 1.15s linear infinite; }
+.pet[data-state="working"] .body  { animation: workWiggle 1.6s ease-in-out infinite; }
+.pet[data-state="working"] .dots  { display: flex; }
+.pet[data-state="working"] .dots i { animation: dotBounce 1.1s ease-in-out infinite; }
+.pet[data-state="working"] .dots i:nth-child(2) { animation-delay: .15s; }
+.pet[data-state="working"] .dots i:nth-child(3) { animation-delay: .30s; }
+.pet[data-state="working"] .mouth { width: 10px; height: 5px; border-radius: 0 0 10px 10px; }
+.pet[data-state="working"] .eye   { animation: blink 3.6s ease-in-out infinite; }
+
+/* ---------- WAITING：弹跳招手 + 红橙 spark + “!” 气泡 ---------- */
+.pet[data-state="waiting"] .body   { animation: alertHop 0.7s ease-in-out infinite; }
+.pet[data-state="waiting"] .spark  { animation: sparkPulse 0.7s ease-in-out infinite; }
+.pet[data-state="waiting"] .spark .blade { fill: var(--alert); }
+.pet[data-state="waiting"] .spark .core  { fill: #ffd9b0; }
+.pet[data-state="waiting"] .mouth  { width: 18px; height: 12px; border-radius: 0 0 18px 18px; }
+.pet[data-state="waiting"] .eye    { height: 19px; animation: none; }
+.pet[data-state="waiting"] .bubble { opacity: 1; transform: scale(1) translateY(0); }
+.pet[data-state="waiting"] .shadow { animation: shadowPulse 0.7s ease-in-out infinite; }
+
+/* ---------- DONE：庆祝光环 + 笑眼 ---------- */
+.pet[data-state="done"] .spark   { animation: sparkCelebrate 0.9s ease-out; }
+.pet[data-state="done"] .spark .blade { fill: var(--gold); }
+.pet[data-state="done"] .eye     { height: 8px; border-radius: 8px 8px 0 0; top: 48px; animation: none; }
+.pet[data-state="done"] .pupil   { opacity: 0; }
+.pet[data-state="done"] .mouth   { width: 20px; height: 11px; border-width: 3px; }
+.pet[data-state="done"] .cheek   { opacity: 1; }
+.pet[data-state="done"] .celebrate {
+  animation: celebrateRing 0.9s ease-out;
+}
+.pet[data-state="done"] .bubble  { opacity: 1; transform: scale(1) translateY(0); }
+
+/* ---------- IDLE：呼吸打盹（默认动画已在元素上） ---------- */
+.pet[data-state="idle"] .mouth { width: 14px; }
+
+/* ---------- OFFLINE：灰掉、闭眼、zzz ---------- */
+.pet[data-state="offline"] { filter: grayscale(0.85) brightness(0.94); opacity: 0.72; }
+.pet[data-state="offline"] .body  { animation: breathe 5.5s ease-in-out infinite; }
+.pet[data-state="offline"] .spark { animation: none; opacity: 0.5; }
+.pet[data-state="offline"] .eye   { height: 3px; top: 51px; border-radius: 3px; animation: none; }
+.pet[data-state="offline"] .pupil { opacity: 0; }
+.pet[data-state="offline"] .mouth { width: 10px; height: 3px; border-radius: 0 0 4px 4px; }
+.pet[data-state="offline"] .bubble { opacity: 1; transform: scale(1) translateY(0); background: var(--cream-deep); color: var(--offline); }
+
+/* =================================================================
+   关键帧
+   ================================================================= */
+@keyframes breathe {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  50%      { transform: translateY(-5px) scale(1.015, 0.985); }
+}
+@keyframes shadowPulse {
+  0%, 100% { transform: translateX(-50%) scale(1); opacity: .9; }
+  50%      { transform: translateX(-50%) scale(0.82); opacity: .6; }
+}
+@keyframes sparkDrift {
+  0%, 100% { transform: translateY(0) rotate(-6deg); }
+  50%      { transform: translateY(-4px) rotate(6deg); }
+}
+@keyframes blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95%           { transform: scaleY(0.08); }
+}
+@keyframes sparkSpin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+@keyframes workWiggle {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  25%      { transform: translateY(-2px) rotate(-2.5deg); }
+  75%      { transform: translateY(-2px) rotate(2.5deg); }
+}
+@keyframes dotBounce {
+  0%, 100% { transform: translateY(0); opacity: .6; }
+  50%      { transform: translateY(-6px); opacity: 1; }
+}
+@keyframes alertHop {
+  0%, 100% { transform: translateY(0); }
+  30%      { transform: translateY(-12px) scale(1.04, 0.96); }
+  55%      { transform: translateY(0) scale(0.97, 1.03); }
+}
+@keyframes sparkPulse {
+  0%, 100% { transform: scale(1) rotate(0); }
+  50%      { transform: scale(1.22) rotate(8deg); }
+}
+@keyframes sparkCelebrate {
+  0%   { transform: scale(0.7) rotate(-30deg); }
+  60%  { transform: scale(1.35) rotate(20deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+@keyframes celebrateRing {
+  0%   { opacity: 0.9; transform: translate(-50%, 0) scale(0.4);
+         box-shadow: 0 0 0 3px var(--gold), 0 0 14px 4px rgba(227,179,65,0.5); }
+  100% { opacity: 0; transform: translate(-50%, 0) scale(1.5);
+         box-shadow: 0 0 0 1px rgba(227,179,65,0); }
+}
+
+/* 尊重系统“减少动态” */
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001s !important; animation-iteration-count: 1 !important; }
+}
+
+/* =================================================================
+   点击展开面板
+   ================================================================= */
+.panel {
+  /* 在 flex 流里排在小人旁边（左/右由 body[data-panel-side] 决定） */
+  width: 224px; flex: 0 0 224px;
+  align-self: flex-end;
+  margin: 8px 8px 12px 0;
+  max-height: calc(100vh - 20px);
+  background: rgba(244, 241, 234, 0.97);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(176, 92, 64, 0.28);
+  border-radius: 14px;
+  box-shadow: 0 12px 30px var(--shadow);
+  font-family: var(--ui-sans);
+  color: var(--ink);
+  overflow: hidden;
+  -webkit-app-region: no-drag;
+  display: flex; flex-direction: column;
+  z-index: 20;
+}
+body[data-panel-side='left'] .panel { margin: 8px 0 12px 8px; }
+.panel-close {
+  margin-left: auto;
+  width: 20px; height: 20px;
+  border: none; border-radius: 6px;
+  background: transparent; color: #948b76;
+  font-size: 12px; line-height: 1; cursor: pointer;
+}
+.panel-close:hover { background: rgba(176, 92, 64, 0.15); color: var(--ink); }
+.panel[hidden] { display: none; }
+.panel-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(176,92,64,0.18);
+}
+.wordmark {
+  font-family: var(--ui-serif);
+  font-size: 18px; font-weight: 600;
+  color: var(--terra-dark);
+  letter-spacing: 0.2px;
+}
+.panel-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--offline); margin-left: auto;
+  box-shadow: 0 0 6px currentColor;
+}
+.panel-dot[data-s="working"] { background: var(--terra); color: var(--terra); }
+.panel-dot[data-s="waiting"] { background: var(--alert);  color: var(--alert); animation: blinkDot .8s step-end infinite; }
+.panel-dot[data-s="done"]    { background: var(--gold);   color: var(--gold); }
+.panel-dot[data-s="idle"]    { background: #b8b0a4; color: transparent; }
+.panel-status { font-size: 12px; color: var(--terra-dark); font-weight: 600; text-transform: capitalize; }
+@keyframes blinkDot { 50% { opacity: 0.25; } }
+
+.sessions { list-style: none; overflow-y: auto; padding: 6px 0; flex: 1; }
+.sessions li {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 14px; font-size: 12px;
+}
+.sessions li .s-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.s-dot.working { background: var(--terra); }
+.s-dot.waiting { background: var(--alert); animation: blinkDot .8s step-end infinite; }
+.s-dot.idle    { background: #c2bbb0; }
+.s-dot.done    { background: var(--gold); }
+.sessions li .s-proj { font-weight: 600; color: var(--terra-dark); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sessions li .s-meta { margin-left: auto; color: #8a8278; font-size: 11px; }
+.sessions .empty { color: #8a8278; padding: 14px; text-align: center; font-style: italic; }
+
+.panel-foot {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 14px; font-size: 11px; color: #8a8278;
+  border-top: 1px solid rgba(176,92,64,0.18);
+}
+.conn { color: var(--offline); font-size: 9px; }
+.conn.up { color: #5a9e6f; }
+.conn.down { color: var(--alert); }

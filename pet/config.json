@@ -1,0 +1,9 @@
+{
+  "primary": { "name": "vibe", "url": "https://vibe.corp.tujia.com/zengyuny/proxy/47600", "token": "" },
+  "ssoOrigin": "https://vibe.corp.tujia.com",
+  "soundOnWaiting": true,
+  "soundOnDone": false,
+  "notifyOnWaiting": true,
+  "notifyOnDone": true,
+  "window": { "width": 168, "height": 210 }
+}

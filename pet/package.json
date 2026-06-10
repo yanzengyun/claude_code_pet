@@ -1,0 +1,43 @@
+{
+  "name": "claude-desktop-pet",
+  "version": "0.1.0",
+  "description": "Claude 官方风格桌宠 — 监控本地/远程 Claude Code 运行状态",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --mac dmg",
+    "dist:arm": "electron-builder --mac dmg --arm64",
+    "dist:intel": "electron-builder --mac dmg --x64"
+  },
+  "author": "zengyuny",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.zengyuny.claudepet",
+    "productName": "Claude Pet",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "preload.js", "settings-preload.js", "renderer/**", "assets/**", "config.json"],
+    "extraResources": [{ "from": "../agent", "to": "agent", "filter": ["*.js"] }],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "assets/icon.png",
+      "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }],
+      "identity": null,
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "dmg": {
+      "title": "Claude Pet",
+      "icon": "assets/icon.png",
+      "window": { "width": 540, "height": 380 },
+      "contents": [
+        { "x": 150, "y": 200, "type": "file" },
+        { "x": 390, "y": 200, "type": "link", "path": "/Applications" }
+      ]
+    }
+  }
+}
