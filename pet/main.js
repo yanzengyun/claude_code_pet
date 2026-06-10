@@ -15,6 +15,7 @@ const cp = require('child_process');
 const DEFAULT_CFG = {
   primary: { name: 'vibe', url: 'http://127.0.0.1:47600', token: '' },
   sources: null,                 // [{name,url,token,enabled}]；null → 由 primary 生成
+  monitor: 'remote',             // 监控目标：'remote'（vibe）| 'local'（本机），二选一
   localMonitor: { enabled: false, port: 47601 }, // 内置 agent 监控本机 ~/.claude
   soundOnWaiting: true,
   soundOnDone: false,
@@ -35,17 +36,33 @@ function loadConfig() {
   }
   c.sources = c.sources.map((s) => ({ name: 'vibe', url: '', token: '', enabled: true, ...s }));
   c.localMonitor = { ...DEFAULT_CFG.localMonitor, ...(c.localMonitor || {}) };
+  // monitor 二选一；旧配置只有 localMonitor.enabled 时按它推断
+  if (c.monitor !== 'local' && c.monitor !== 'remote') {
+    c.monitor = c.localMonitor.enabled ? 'local' : 'remote';
+  }
   return c;
 }
 let cfg = loadConfig();
 
-/** 渲染层实际要订阅的源：启用的远程源 + （开了本地监控时）内置本地 agent */
+/** 渲染层实际要订阅的源：按监控目标二选一（vibe 远程 或 本机内置 agent） */
 function effectiveSources() {
-  const list = cfg.sources.filter((s) => s.enabled !== false && s.url);
-  if (cfg.localMonitor.enabled) {
-    list.push({ name: '本机', url: `http://127.0.0.1:${cfg.localMonitor.port || 47601}`, token: '' });
+  if (cfg.monitor === 'local') {
+    return [{ name: '本机', url: `http://127.0.0.1:${cfg.localMonitor.port || 47601}`, token: '' }];
   }
-  return list;
+  return cfg.sources.filter((s) => s.enabled !== false && s.url);
+}
+
+/** 切换监控目标并持久化到用户配置 */
+function setMonitor(m) {
+  let user = {};
+  try { user = JSON.parse(fs.readFileSync(userCfgPath(), 'utf8')); } catch {}
+  user.monitor = m;
+  user.localMonitor = { ...(user.localMonitor || {}), enabled: m === 'local' };
+  try {
+    fs.mkdirSync(path.dirname(userCfgPath()), { recursive: true });
+    fs.writeFileSync(userCfgPath(), JSON.stringify(user, null, 2));
+  } catch {}
+  applyConfig();
 }
 
 let win = null, tray = null, loginWin = null, settingsWin = null;
@@ -65,7 +82,7 @@ function stopLocalAgent() {
 }
 function startLocalAgent() {
   stopLocalAgent();
-  if (!cfg.localMonitor.enabled) return;
+  if (cfg.monitor !== 'local') return;
   const serverPath = agentServerPath();
   if (!serverPath) { notify('Claude Pet', '未找到内置 agent（agent/server.js），本地监控不可用', true); return; }
   const env = {
@@ -131,6 +148,9 @@ function makeMenu() {
   return Menu.buildFromTemplate([
     { label: '显示 / 隐藏', click: () => { if (win.isVisible()) win.hide(); else win.show(); } },
     { type: 'separator' },
+    { label: '监控 vibe（远程）', type: 'radio', checked: cfg.monitor !== 'local', click: () => setMonitor('remote') },
+    { label: '监控本机（~/.claude）', type: 'radio', checked: cfg.monitor === 'local', click: () => setMonitor('local') },
+    { type: 'separator' },
     ...srcLines,
     { label: '设置…', click: openSettings },
     { label: '登录 vibe（代理连接用）', visible: !!cfg.ssoOrigin, click: openLogin },
@@ -181,8 +201,9 @@ ipcMain.handle('settings-save', (_e, next) => {
       name: String(s.name || 'vibe'), url: String(s.url || ''),
       token: String(s.token || ''), enabled: s.enabled !== false,
     })),
+    monitor: next.monitor === 'local' ? 'local' : 'remote',
     localMonitor: {
-      enabled: !!(next.localMonitor && next.localMonitor.enabled),
+      enabled: next.monitor === 'local',
       port: parseInt(next.localMonitor && next.localMonitor.port, 10) || 47601,
     },
     soundOnWaiting: !!next.soundOnWaiting,
@@ -197,6 +218,37 @@ ipcMain.handle('settings-save', (_e, next) => {
   return { ok: true };
 });
 ipcMain.handle('pet-config-get', () => ({ ...cfg, sources: effectiveSources() }));
+
+// ---------- 面板开合：窗口向小人旁边扩展（默认右侧，贴屏幕边时换左侧） ----------
+const PANEL_W = 240, PANEL_H_EXTRA = 110;
+let panelOpen = false, panelSide = 'right';
+ipcMain.handle('pet-panel', (_e, open) => {
+  if (!win) return { side: panelSide };
+  const w0 = cfg.window.width, h0 = cfg.window.height;
+  const b = win.getBounds();
+  if (open && !panelOpen) {
+    panelOpen = true;
+    const wa = screen.getDisplayMatching(b).workArea;
+    panelSide = (b.x + w0 + PANEL_W <= wa.x + wa.width) ? 'right' : 'left';
+    win.setResizable(true);
+    win.setBounds({
+      x: panelSide === 'left' ? b.x - PANEL_W : b.x,
+      y: Math.max(wa.y, b.y - PANEL_H_EXTRA),
+      width: w0 + PANEL_W, height: h0 + PANEL_H_EXTRA,
+    });
+    win.setResizable(false);
+  } else if (!open && panelOpen) {
+    panelOpen = false;
+    win.setResizable(true);
+    win.setBounds({
+      x: panelSide === 'left' ? b.x + PANEL_W : b.x,
+      y: b.y + PANEL_H_EXTRA,
+      width: w0, height: h0,
+    });
+    win.setResizable(false);
+  }
+  return { side: panelSide };
+});
 
 // ---------- SSO 登录窗（代理模式） ----------
 function openLogin() {

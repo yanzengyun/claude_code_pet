@@ -100,6 +100,19 @@ function renderSessions(sessions) {
 // 按住移动 = 拖窗口；按下抬起几乎没动 = 点击开合面板
 let panelOpen = false;
 const DRAG_THRESHOLD = 4; // px，超过视为拖拽
+
+/** 开/关面板：main 把窗口向旁边扩/缩，面板显示在小人侧边（默认右，贴边换左） */
+async function setPanel(open) {
+  panelOpen = open;
+  if (!open) panel.hidden = true; // 先藏再缩窗，避免闪烁
+  try {
+    const r = window.petBridge && window.petBridge.panelToggle
+      ? await window.petBridge.panelToggle(open) : null;
+    if (r && r.side) document.body.setAttribute('data-panel-side', r.side);
+  } catch {}
+  if (open) panel.hidden = false;
+}
+
 pet.addEventListener('mousedown', (e) => {
   if (e.button !== 0) return;
   let lastX = e.screenX, lastY = e.screenY, moved = 0;
@@ -112,15 +125,13 @@ pet.addEventListener('mousedown', (e) => {
   const onUp = () => {
     window.removeEventListener('mousemove', onMove);
     window.removeEventListener('mouseup', onUp);
-    if (moved <= DRAG_THRESHOLD) {
-      panelOpen = !panelOpen;
-      panel.hidden = !panelOpen;
-    }
+    if (moved <= DRAG_THRESHOLD) setPanel(!panelOpen);
   };
   window.addEventListener('mousemove', onMove);
   window.addEventListener('mouseup', onUp);
 });
 panel.addEventListener('mousedown', (e) => { e.stopPropagation(); });
+document.getElementById('panelClose').addEventListener('click', () => setPanel(false));
 
 // ---------- 5. 连接层（多源 SSE + 聚合） ----------
 const connEl = document.getElementById('connState');

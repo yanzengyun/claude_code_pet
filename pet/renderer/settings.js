@@ -8,12 +8,12 @@ let cfg = null;
 async function load() {
   cfg = await window.settingsBridge.get();
   const src = (cfg.sources && cfg.sources[0]) || { name: 'vibe', url: '', token: '', enabled: true };
-  $('srcEnabled').checked = src.enabled !== false;
+  $('monRemote').checked = cfg.monitor !== 'local';
+  $('monLocal').checked = cfg.monitor === 'local';
   $('srcName').value = src.name || 'vibe';
   $('srcUrl').value = src.url || '';
   $('srcToken').value = src.token || '';
   $('ssoOrigin').value = cfg.ssoOrigin || '';
-  $('localEnabled').checked = !!(cfg.localMonitor && cfg.localMonitor.enabled);
   $('localPort').value = (cfg.localMonitor && cfg.localMonitor.port) || 47601;
   $('notifyOnWaiting').checked = !!cfg.notifyOnWaiting;
   $('soundOnWaiting').checked = !!cfg.soundOnWaiting;
@@ -23,14 +23,14 @@ async function load() {
 
 async function save() {
   const next = {
+    monitor: $('monLocal').checked ? 'local' : 'remote',
     sources: [{
       name: $('srcName').value.trim() || 'vibe',
       url: $('srcUrl').value.trim(),
       token: $('srcToken').value.trim(),
-      enabled: $('srcEnabled').checked,
+      enabled: true,
     }],
     localMonitor: {
-      enabled: $('localEnabled').checked,
       port: parseInt($('localPort').value, 10) || 47601,
     },
     notifyOnWaiting: $('notifyOnWaiting').checked,

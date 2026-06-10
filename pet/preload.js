@@ -20,4 +20,6 @@ contextBridge.exposeInMainWorld('petBridge', {
   moveWindowBy: (dx, dy) => ipcRenderer.send('pet-move-by', { dx, dy }),
   // 实时取配置（含 effectiveSources），重新加载后能拿到最新值
   getConfig: () => ipcRenderer.invoke('pet-config-get'),
+  // 面板开合：main 扩/缩窗口，返回面板该在哪一侧 {side:'right'|'left'}
+  panelToggle: (open) => ipcRenderer.invoke('pet-panel', open),
 });

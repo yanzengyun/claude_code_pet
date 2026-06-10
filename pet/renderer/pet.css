@@ -32,6 +32,8 @@ body {
   align-items: flex-end;
   justify-content: center;
 }
+/* 面板打开时窗口被 main 加宽：小人保持原位，面板占旁边的扩展区 */
+body[data-panel-side='left'] .panel { order: -1; }
 
 /* ============ 桌宠主体 ============ */
 .pet {
@@ -286,8 +288,11 @@ body {
    点击展开面板
    ================================================================= */
 .panel {
-  position: absolute; left: 8px; right: 8px; bottom: 8px;
-  max-height: calc(100% - 16px);
+  /* 在 flex 流里排在小人旁边（左/右由 body[data-panel-side] 决定） */
+  width: 224px; flex: 0 0 224px;
+  align-self: flex-end;
+  margin: 8px 8px 12px 0;
+  max-height: calc(100vh - 20px);
   background: rgba(244, 241, 234, 0.97);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(176, 92, 64, 0.28);
@@ -300,6 +305,15 @@ body {
   display: flex; flex-direction: column;
   z-index: 20;
 }
+body[data-panel-side='left'] .panel { margin: 8px 0 12px 8px; }
+.panel-close {
+  margin-left: auto;
+  width: 20px; height: 20px;
+  border: none; border-radius: 6px;
+  background: transparent; color: #948b76;
+  font-size: 12px; line-height: 1; cursor: pointer;
+}
+.panel-close:hover { background: rgba(176, 92, 64, 0.15); color: var(--ink); }
 .panel[hidden] { display: none; }
 .panel-head {
   display: flex; align-items: center; gap: 8px;
