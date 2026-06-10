@@ -360,3 +360,45 @@ body[data-panel-side='left'] .panel { margin: 8px 0 12px 8px; }
 .conn { color: var(--offline); font-size: 9px; }
 .conn.up { color: #5a9e6f; }
 .conn.down { color: var(--alert); }
+
+/* ============ 互动反应（纯视觉层，不碰状态机；类移除即回到状态动画） ============ */
+/* 被拎起来：吊起摇摆 + 瞪大眼 + 嘴巴变 o + 影子缩小 */
+.pet.react-drag .body {
+  animation: dragSwing 0.55s ease-in-out infinite;
+  border-radius: 46% 46% 50% 50% / 58% 58% 42% 42%;
+}
+.pet.react-drag .eye   { height: 19px; width: 14px; animation: none; }
+.pet.react-drag .pupil { width: 6px; height: 6px; }
+.pet.react-drag .mouth { width: 9px; height: 9px; border: 2.5px solid var(--ink); border-radius: 50%; }
+.pet.react-drag .shadow { opacity: 0.35; transform: translateX(-50%) scale(0.75); animation: none; }
+.pet.react-drag .spark { animation: sparkWobble 0.55s ease-in-out infinite; }
+@keyframes dragSwing {
+  0%, 100% { transform: rotate(-5deg) translateY(-4px); }
+  50%      { transform: rotate(5deg)  translateY(-2px); }
+}
+@keyframes sparkWobble {
+  0%, 100% { transform: rotate(-12deg); }
+  50%      { transform: rotate(12deg); }
+}
+
+/* 松手落地：压扁回弹 */
+.pet.react-land .body { animation: landSquash 0.45s cubic-bezier(.34, 1.56, .64, 1); }
+@keyframes landSquash {
+  0%   { transform: scaleY(0.78) scaleX(1.14) translateY(5px); }
+  55%  { transform: scaleY(1.07) scaleX(0.95) translateY(-3px); }
+  100% { transform: none; }
+}
+
+/* 点击：开心晃一晃 + 脸红 + 咧嘴 */
+.pet.react-click .body  { animation: happyWiggle 0.5s ease-in-out; }
+.pet.react-click .cheek { opacity: 1; }
+.pet.react-click .mouth { width: 18px; height: 10px; }
+@keyframes happyWiggle {
+  0%   { transform: rotate(0); }
+  25%  { transform: rotate(-6deg) scale(1.05); }
+  60%  { transform: rotate(5deg)  scale(1.02); }
+  100% { transform: rotate(0); }
+}
+
+/* 眼珠跟随鼠标（JS 设 transform） */
+.pupil { transition: transform 0.08s linear; }

@@ -115,25 +115,56 @@ async function setPanel(open) {
   if (open) panel.hidden = false;
 }
 
+// 互动反应：只加/移除 CSS 类做动画，不发任何事件、不改 data-state
+let reactTimer = null;
+function react(cls, ms) {
+  clearTimeout(reactTimer);
+  pet.classList.remove('react-land', 'react-click');
+  pet.classList.add(cls);
+  if (ms) reactTimer = setTimeout(() => pet.classList.remove(cls), ms);
+}
+
 pet.addEventListener('mousedown', (e) => {
   if (e.button !== 0) return;
-  let lastX = e.screenX, lastY = e.screenY, moved = 0;
+  let lastX = e.screenX, lastY = e.screenY, moved = 0, dragging = false;
   const onMove = (ev) => {
     const dx = ev.screenX - lastX, dy = ev.screenY - lastY;
     moved += Math.abs(dx) + Math.abs(dy);
-    if (moved > DRAG_THRESHOLD && window.petBridge) window.petBridge.moveWindowBy(dx, dy);
+    if (moved > DRAG_THRESHOLD) {
+      if (!dragging) { dragging = true; react('react-drag'); } // 被拎起来
+      if (window.petBridge) window.petBridge.moveWindowBy(dx, dy);
+    }
     lastX = ev.screenX; lastY = ev.screenY;
   };
   const onUp = () => {
     window.removeEventListener('mousemove', onMove);
     window.removeEventListener('mouseup', onUp);
-    if (moved <= DRAG_THRESHOLD) setPanel(!panelOpen);
+    if (dragging) {
+      pet.classList.remove('react-drag');
+      react('react-land', 500);                                // 落地回弹
+    } else if (moved <= DRAG_THRESHOLD) {
+      react('react-click', 550);                               // 开心晃一晃
+      setPanel(!panelOpen);
+    }
   };
   window.addEventListener('mousemove', onMove);
   window.addEventListener('mouseup', onUp);
 });
 panel.addEventListener('mousedown', (e) => { e.stopPropagation(); });
 document.getElementById('panelClose').addEventListener('click', () => setPanel(false));
+
+// 眼珠跟随鼠标（悬停在窗口内时）
+const pupils = document.querySelectorAll('.pupil');
+window.addEventListener('mousemove', (e) => {
+  const r = pet.getBoundingClientRect();
+  const cx = r.left + r.width / 2, cy = r.top + r.height * 0.45;
+  const dx = Math.max(-1, Math.min(1, (e.clientX - cx) / 90));
+  const dy = Math.max(-1, Math.min(1, (e.clientY - cy) / 90));
+  pupils.forEach((p) => { p.style.transform = `translate(${(dx * 2.5).toFixed(1)}px, ${(dy * 2.5).toFixed(1)}px)`; });
+});
+document.addEventListener('mouseleave', () => {
+  pupils.forEach((p) => { p.style.transform = ''; });
+});
 
 // ---------- 5. 连接层（多源 SSE + 聚合） ----------
 const connEl = document.getElementById('connState');
