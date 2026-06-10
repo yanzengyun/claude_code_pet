@@ -16,6 +16,7 @@ const DEFAULT_CFG = {
   primary: { name: 'vibe', url: 'http://127.0.0.1:47600', token: '' },
   sources: null,                 // [{name,url,token,enabled}]；null → 由 primary 生成
   monitor: 'remote',             // 监控目标：'remote'（vibe）| 'local'（本机），二选一
+  skin: 'claude',                // 皮肤：'claude'（官方小人）| 'squirtle'（像素小蓝龟）
   localMonitor: { enabled: false, port: 47601 }, // 内置 agent 监控本机 ~/.claude
   soundOnWaiting: true,
   soundOnDone: false,
@@ -52,17 +53,23 @@ function effectiveSources() {
   return cfg.sources.filter((s) => s.enabled !== false && s.url);
 }
 
-/** 切换监控目标并持久化到用户配置 */
-function setMonitor(m) {
+/** 读用户配置 → 打补丁 → 写回 → 整体生效 */
+function saveUserPatch(patch) {
   let user = {};
   try { user = JSON.parse(fs.readFileSync(userCfgPath(), 'utf8')); } catch {}
-  user.monitor = m;
-  user.localMonitor = { ...(user.localMonitor || {}), enabled: m === 'local' };
+  Object.assign(user, patch);
   try {
     fs.mkdirSync(path.dirname(userCfgPath()), { recursive: true });
     fs.writeFileSync(userCfgPath(), JSON.stringify(user, null, 2));
   } catch {}
   applyConfig();
+}
+
+/** 切换监控目标并持久化到用户配置 */
+function setMonitor(m) {
+  let user = {};
+  try { user = JSON.parse(fs.readFileSync(userCfgPath(), 'utf8')); } catch {}
+  saveUserPatch({ monitor: m, localMonitor: { ...(user.localMonitor || {}), enabled: m === 'local' } });
 }
 
 let win = null, tray = null, loginWin = null, settingsWin = null;
@@ -151,6 +158,9 @@ function makeMenu() {
     { label: '监控 vibe（远程）', type: 'radio', checked: cfg.monitor !== 'local', click: () => setMonitor('remote') },
     { label: '监控本机（~/.claude）', type: 'radio', checked: cfg.monitor === 'local', click: () => setMonitor('local') },
     { type: 'separator' },
+    { label: '皮肤：Claude 小人', type: 'radio', checked: cfg.skin !== 'squirtle', click: () => saveUserPatch({ skin: 'claude' }) },
+    { label: '皮肤：像素小蓝龟', type: 'radio', checked: cfg.skin === 'squirtle', click: () => saveUserPatch({ skin: 'squirtle' }) },
+    { type: 'separator' },
     ...srcLines,
     { label: '设置…', click: openSettings },
     { label: '登录 vibe（代理连接用）', visible: !!cfg.ssoOrigin, click: openLogin },
@@ -179,7 +189,7 @@ function applyConfig() {
 function openSettings() {
   if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.focus(); return; }
   settingsWin = new BrowserWindow({
-    width: 440, height: 640, title: 'Claude Pet 设置',
+    width: 440, height: 730, title: 'Claude Pet 设置',
     resizable: false, minimizable: false, maximizable: false, fullscreenable: false,
     webPreferences: {
       preload: path.join(__dirname, 'settings-preload.js'),
@@ -202,6 +212,7 @@ ipcMain.handle('settings-save', (_e, next) => {
       token: String(s.token || ''), enabled: s.enabled !== false,
     })),
     monitor: next.monitor === 'local' ? 'local' : 'remote',
+    skin: next.skin === 'squirtle' ? 'squirtle' : 'claude',
     localMonitor: {
       enabled: next.monitor === 'local',
       port: parseInt(next.localMonitor && next.localMonitor.port, 10) || 47601,

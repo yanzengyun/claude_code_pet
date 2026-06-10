@@ -10,6 +10,8 @@ async function load() {
   const src = (cfg.sources && cfg.sources[0]) || { name: 'vibe', url: '', token: '', enabled: true };
   $('monRemote').checked = cfg.monitor !== 'local';
   $('monLocal').checked = cfg.monitor === 'local';
+  $('skinClaude').checked = cfg.skin !== 'squirtle';
+  $('skinSquirtle').checked = cfg.skin === 'squirtle';
   $('srcName').value = src.name || 'vibe';
   $('srcUrl').value = src.url || '';
   $('srcToken').value = src.token || '';
@@ -24,6 +26,7 @@ async function load() {
 async function save() {
   const next = {
     monitor: $('monLocal').checked ? 'local' : 'remote',
+    skin: $('skinSquirtle').checked ? 'squirtle' : 'claude',
     sources: [{
       name: $('srcName').value.trim() || 'vibe',
       url: $('srcUrl').value.trim(),

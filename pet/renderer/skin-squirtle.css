@@ -1,0 +1,57 @@
+/* skin-squirtle.css — 像素小蓝龟皮肤。
+ * 共用 #pet 的 data-state 状态机与 .react-* 互动类；
+ * 仅当 body[data-skin="squirtle"] 时显示，Claude 小人（.spark/.body）隐藏。 */
+
+/* ---- 皮肤切换 ---- */
+body:not([data-skin='squirtle']) #skin-squirtle { display: none; }
+body[data-skin='squirtle'] .pet > .spark,
+body[data-skin='squirtle'] .pet > .body { display: none; }
+
+/* ---- 容器 ---- */
+#skin-squirtle {
+  position: relative;
+  margin-bottom: 14px;
+  z-index: 2;
+  animation: breathe 3.6s ease-in-out infinite;
+}
+#skin-squirtle .px {
+  position: absolute; top: 0; left: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ---- 状态 → 帧（默认圆眼） ---- */
+#skin-squirtle .f-open { opacity: 1; }
+
+/* idle：呼吸 + 偶尔眨眼 */
+.pet[data-state='idle'] #skin-squirtle .f-open   { animation: sqBlinkOpen 5.2s step-end infinite; }
+.pet[data-state='idle'] #skin-squirtle .f-closed { animation: sqBlinkClosed 5.2s step-end infinite; }
+
+/* working：圆眼 + 小幅摇摆 */
+.pet[data-state='working'] #skin-squirtle { animation: workWiggle 1.6s ease-in-out infinite; }
+
+/* waiting：瞪眼 o 嘴 + 弹跳 */
+.pet[data-state='waiting'] #skin-squirtle { animation: alertHop 0.7s ease-in-out infinite; }
+.pet[data-state='waiting'] #skin-squirtle .f-open      { opacity: 0; }
+.pet[data-state='waiting'] #skin-squirtle .f-surprised { opacity: 1; }
+
+/* done：笑眼大嘴（庆祝光环为全局元素，照常生效） */
+.pet[data-state='done'] #skin-squirtle .f-open  { opacity: 0; }
+.pet[data-state='done'] #skin-squirtle .f-happy { opacity: 1; }
+
+/* offline：眯眼睡觉（灰化滤镜在 .pet[data-state=offline] 上，全皮肤通用） */
+.pet[data-state='offline'] #skin-squirtle { animation: breathe 5.5s ease-in-out infinite; }
+.pet[data-state='offline'] #skin-squirtle .f-open   { opacity: 0; }
+.pet[data-state='offline'] #skin-squirtle .f-closed { opacity: 1; }
+
+@keyframes sqBlinkOpen   { 0%, 91.9%, 96.1%, 100% { opacity: 1; } 92%, 96% { opacity: 0; } }
+@keyframes sqBlinkClosed { 0%, 91.9%, 96.1%, 100% { opacity: 0; } 92%, 96% { opacity: 1; } }
+
+/* ---- 互动反应（与 Claude 皮肤同款手感） ---- */
+.pet.react-drag #skin-squirtle { animation: dragSwing 0.55s ease-in-out infinite; }
+.pet.react-drag #skin-squirtle .f-open      { opacity: 0; }
+.pet.react-drag #skin-squirtle .f-surprised { opacity: 1; }
+.pet.react-land #skin-squirtle  { animation: landSquash 0.45s cubic-bezier(.34, 1.56, .64, 1); }
+.pet.react-click #skin-squirtle { animation: happyWiggle 0.5s ease-in-out; }
+.pet.react-click #skin-squirtle .f-open  { opacity: 0; }
+.pet.react-click #skin-squirtle .f-happy { opacity: 1; }

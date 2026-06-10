@@ -254,6 +254,10 @@ function start() {
       'linear-gradient(150deg,#cfd9e0 0%,#aeb9c2 55%,#9aa6b0 100%)';
   }
 
+  // 皮肤：URL 参数优先（mock/demo 测试用），其次注入配置
+  document.body.setAttribute('data-skin',
+    q.get('skin') || (window.PET_CONFIG && window.PET_CONFIG.skin) || 'claude');
+
   if (q.get('mock')) {                       // 测试：仅渲染，不连
     setConn(false, 'mock');
     if (q.get('state')) applySnapshot({ pet: q.get('state'), reason: 'mock',
@@ -280,6 +284,7 @@ function start() {
     .catch(() => null)
     .then((live) => {
       const cfg = live || window.PET_CONFIG || {};
+      document.body.setAttribute('data-skin', q.get('skin') || cfg.skin || 'claude');
       let sources = Array.isArray(cfg.sources) ? cfg.sources : null;
       if (!sources || !sources.length) {
         const p = cfg.primary || { name: 'local', url: 'http://127.0.0.1:47600', token: '' };

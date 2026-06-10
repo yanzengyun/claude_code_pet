@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Claude Pet</title>
   <link rel="stylesheet" href="pet.css" />
+  <link rel="stylesheet" href="skin-squirtle.css" />
 </head>
 <body>
   <!-- 拖拽热区 = 整个小人；transparent 窗口由 Electron 提供 -->
@@ -24,6 +25,9 @@
       <!-- working 时的打字点 -->
       <div class="dots"><i></i><i></i><i></i></div>
     </div>
+
+    <!-- 像素皮肤：小蓝龟（帧由 skins.js 注入，data-skin=squirtle 时显示） -->
+    <div id="skin-squirtle"></div>
 
     <!-- 地面投影 -->
     <div class="shadow"></div>
@@ -50,6 +54,7 @@
     </div>
   </div>
 
+  <script src="skins.js"></script>
   <script src="pet.js"></script>
 </body>
 </html>
