@@ -38,7 +38,7 @@ body {
   position: relative;
   margin-bottom: 12px;
   width: 132px; height: 168px;
-  -webkit-app-region: drag;          /* 整只小人可拖动窗口 */
+  cursor: grab;                      /* 拖动/点击由 pet.js 手动处理（drag 区域会吞掉 click） */
   display: flex; flex-direction: column;
   align-items: center; justify-content: flex-end;
 }

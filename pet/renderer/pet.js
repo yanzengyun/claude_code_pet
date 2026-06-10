@@ -93,13 +93,32 @@ function renderSessions(sessions) {
   }
 }
 
-// ---------- 4. 面板开合 ----------
+// ---------- 4. 拖拽 + 面板开合 ----------
+// CSS 的 -webkit-app-region: drag 会吞掉 click，这里手动实现：
+// 按住移动 = 拖窗口；按下抬起几乎没动 = 点击开合面板
 let panelOpen = false;
-pet.addEventListener('click', () => {
-  panelOpen = !panelOpen;
-  panel.hidden = !panelOpen;
+const DRAG_THRESHOLD = 4; // px，超过视为拖拽
+pet.addEventListener('mousedown', (e) => {
+  if (e.button !== 0) return;
+  let lastX = e.screenX, lastY = e.screenY, moved = 0;
+  const onMove = (ev) => {
+    const dx = ev.screenX - lastX, dy = ev.screenY - lastY;
+    moved += Math.abs(dx) + Math.abs(dy);
+    if (moved > DRAG_THRESHOLD && window.petBridge) window.petBridge.moveWindowBy(dx, dy);
+    lastX = ev.screenX; lastY = ev.screenY;
+  };
+  const onUp = () => {
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
+    if (moved <= DRAG_THRESHOLD) {
+      panelOpen = !panelOpen;
+      panel.hidden = !panelOpen;
+    }
+  };
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
 });
-panel.addEventListener('click', (e) => { e.stopPropagation(); });
+panel.addEventListener('mousedown', (e) => { e.stopPropagation(); });
 
 // ---------- 5. 连接层（SSE） ----------
 const connEl = document.getElementById('connState');

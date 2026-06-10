@@ -16,4 +16,6 @@ contextBridge.exposeInMainWorld('petBridge', {
   onState: (s) => ipcRenderer.send('pet-state', s),
   // renderer 请求开合点击穿透（可选）
   setIgnoreMouse: (ignore) => ipcRenderer.send('pet-ignore-mouse', ignore),
+  // 手动拖拽：renderer 报告位移，main 移动窗口
+  moveWindowBy: (dx, dy) => ipcRenderer.send('pet-move-by', { dx, dy }),
 });

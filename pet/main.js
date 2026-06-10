@@ -132,6 +132,11 @@ ipcMain.on('pet-state', (_e, s) => {
   }
 });
 ipcMain.on('pet-ignore-mouse', (_e, ignore) => { if (win) win.setIgnoreMouseEvents(!!ignore, { forward: true }); });
+ipcMain.on('pet-move-by', (_e, d) => {
+  if (!win || !d) return;
+  const [x, y] = win.getPosition();
+  win.setPosition(x + (d.dx | 0), y + (d.dy | 0));
+});
 
 // ---------- 生命周期 ----------
 app.whenReady().then(() => {
