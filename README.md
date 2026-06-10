@@ -2,12 +2,19 @@
 
 桌面上一只 **Claude 官方风格的小人**，随你监控的 Claude Code 运行状态变表情/动作：
 思考时星芒转圈、卡住等你点权限时弹跳招手 + 系统通知叫你回来、任务完成时庆祝、空闲时打盹。
-支持监控 **远程 vibe 上的 Claude Code** 和 **你本地 Mac 上的 Claude Code**。
+支持监控 **远程 vibe 上的 Claude Code** 和 **你本地 Mac 上的 Claude Code**（托盘一键切换）。
 
 ```
   idle 打盹      working 思考      waiting 需要你!      done 完成      offline 离线
    (｡-‿-)         ✦ 转转转          ❗弹跳+通知         ✓ 撒花         (灰) zzz
 ```
+
+**亮点功能**
+
+- 🫧 **工具气泡**：working 时头顶冒「正在执行命令…/修改代码…/搜索代码…」，瞟一眼就知道进展（需装 `--with-tools` 钩子）。
+- 🏷️ **会话标题**：点开面板显示每个会话的标题（Claude 自动生成的 `ai-title`，无则用最后一条用户消息），多会话不再分不清。
+- 🎭 **互动反应**：拖着走会吊摆瞪眼、松手落地回弹、点击开心晃动、眼珠跟随鼠标——纯视觉，不影响状态判定。
+- ⚙️ **图形化设置**：托盘「设置…」配连接 / 通知 / 音效 / 监控目标，保存即生效。
 
 ## 它由两部分组成
 
@@ -69,11 +76,14 @@ bash build-dmg.sh          # 同时出 arm64 + x64；或 build-dmg.sh arm / inte
 vibe 的 agent 监听在服务器的 `127.0.0.1:47600`，Mac 要连过去，两种方式：
 
 ### 方式 A · SSH 隧道（推荐，最稳，无需登录）
-在 Mac 上开一个隧道，把 vibe 的 47600 映射到本地 47600：
+在 Mac 上开一个隧道，把 vibe 的 47600 映射到本地 47600。**用你平时 ssh 登 vibe 的真实地址**
+（例如 `zengyuny@l-picservice4.tj.cn5`，不是网页域名 `vibe.corp.tujia.com`——后者只走网页 SSO，密码登不上）：
 ```bash
-ssh -N -L 47600:127.0.0.1:47600 <你的用户名>@vibe.corp.tujia.com
+ssh -N -L 47600:127.0.0.1:47600 zengyuny@l-picservice4.tj.cn5
 ```
-保持这个终端开着。`pet/config.json` 用默认的 `"url": "http://127.0.0.1:47600"` 即可。
+- 窗口会"卡住"不动 = 正常，保持开着别关。
+- `pet/config.json` 用默认的 `"url": "http://127.0.0.1:47600"` 即可。
+- Mac 睡眠/换网后隧道会断，桌宠转灰，重跑这条即可。嫌烦可用 `autossh` 自动重连。
 
 ### 方式 B · 走 vibe 代理 + 登录（没有 SSH 时用）
 vibe 用 `https://vibe.corp.tujia.com/zengyuny/proxy/47600/` 暴露端口，但前面有公司 SSO 登录。
@@ -99,13 +109,16 @@ vibe 用 `https://vibe.corp.tujia.com/zengyuny/proxy/47600/` 暴露端口，但�
 在 **agent 所在的机器**（vibe）上：
 ```bash
 cd claude-desktop-pet/hooks
-./install-hooks.sh                 # 先预览：只打印会加什么 + 生成 *.cc-pet-preview，不动你的 settings.json
-./install-hooks.sh --apply         # 确认后真正写入（自动备份 settings.json.bak-<时间戳>，只增不改）
-./uninstall-hooks.sh --apply       # 想撤销时
+./install-hooks.sh                       # 先预览：只打印会加什么 + 生成 *.cc-pet-preview，不动你的 settings.json
+./install-hooks.sh --apply               # 确认后真正写入（自动备份 settings.json.bak-<时间戳>，只增不改）
+./install-hooks.sh --apply --with-tools  # 额外注册 PreToolUse/PostToolUse → 启用「工具气泡」（更实时）
+./uninstall-hooks.sh --apply             # 想撤销时
 ```
 - 只追加，不动你已有的任何 hook；写前备份、写后校验 JSON。
 - 钩子转发用 `curl --max-time 1` 后台执行，agent 挂了也**绝不阻塞 Claude Code**。
 - agent 端口/带 token 不同：在 shell 里 `export CC_PET_URL=... CC_PET_TOKEN=...`。
+- **钩子是会话启动时加载的**：装/改钩子后，只对**新开的** Claude Code 会话生效，已开的要重启。
+- `--with-tools` 必须用命令行参数（环境变量 `WITH_TOOLS=1` 不生效）。
 
 ---
 
@@ -141,9 +154,13 @@ curl -N http://127.0.0.1:47600/events         # 持续打印 data: {...}
 # 跑单测
 node test/state.test.js                        # 状态聚合逻辑
 ```
-- 桌宠一直 `offline`：agent 没起 / 隧道没开 / 代理没登录 / url 端口不对。
-- vibe 上 `status` 里混进别人的会话：检查 `slugIncludes` 是不是你自己的项目前缀。
-- 没有系统通知：macOS「系统设置 → 通知」允许「Claude Pet / Electron」。
+- 桌宠突然 `offline`：先在 vibe 上 `curl http://127.0.0.1:47600/health`——
+  - 不通 → agent 挂了，`cd agent && bash start.sh` 重启（想一劳永逸挂 cron，见第一节）。
+  - 通了但桌宠还灰 → Mac 这头 SSH 隧道断了，重跑方式 A 那条 ssh 命令。
+- vibe 上 `status` 里混进别人的会话：检查 `slugIncludes` 是不是你自己的项目前缀
+  （共享机上所有人的钩子都会发事件来，agent 已按 `slugIncludes` 过滤，只收你自己项目的）。
+- 工具气泡不出现：① 钩子要带 `--with-tools` 装；② 当前会话需是装钩子之后**新开**的；③ Mac 端要 `git pull` 到最新。
+- 没有系统通知/提示音：macOS「系统设置 → 通知」允许「Claude Pet / Electron」；完成提示音默认关，在「设置…」里开。
 
 ## 设计文档
 `docs/specs/2026-06-09-claude-desktop-pet-design.md`
