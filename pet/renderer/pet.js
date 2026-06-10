@@ -86,8 +86,10 @@ function renderSessions(sessions) {
     dot.className = 's-dot ' + s.state;
     const proj = document.createElement('span');
     const projName = s.project || s.sessionId.slice(0, 8);
+    const label = s.title || projName;   // 优先会话标题，悬停看项目名
     proj.className = 's-proj';
-    proj.textContent = (multiSource && s.sourceName) ? `${s.sourceName}·${projName}` : projName;
+    proj.textContent = (multiSource && s.sourceName) ? `${s.sourceName}·${label}` : label;
+    proj.title = projName;
     const meta = document.createElement('span');
     meta.className = 's-meta'; meta.textContent = STATE_LABEL[s.state] || s.state;
     li.append(dot, proj, meta);

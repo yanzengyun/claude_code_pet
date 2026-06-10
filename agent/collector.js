@@ -60,6 +60,77 @@ function lastContentEvent(jsonlPath) {
   return null;
 }
 
+/** 读文件头部最多 maxBytes 字节 */
+function readHead(file, maxBytes = 131072) {
+  let fd;
+  try {
+    fd = fs.openSync(file, 'r');
+    const { size } = fs.fstatSync(fd);
+    const len = Math.min(size, maxBytes);
+    const buf = Buffer.alloc(len);
+    fs.readSync(fd, buf, 0, len, 0);
+    return buf.toString('utf8');
+  } catch {
+    return '';
+  } finally {
+    if (fd !== undefined) { try { fs.closeSync(fd); } catch {} }
+  }
+}
+
+/** 从一段 jsonl 文本里找 ai-title（reverse=true 取最后一条，否则取第一条） */
+function findAiTitle(text, reverse) {
+  const lines = text.split('\n');
+  const idx = reverse ? lines.map((_, i) => lines.length - 1 - i) : lines.map((_, i) => i);
+  for (const i of idx) {
+    const line = lines[i];
+    if (!line || line.indexOf('"ai-title"') === -1) continue;
+    try {
+      const d = JSON.parse(line.trim());
+      if (d.type === 'ai-title' && d.aiTitle) return String(d.aiTitle);
+    } catch {}
+  }
+  return null;
+}
+
+/** 兜底标题：最后一条纯文本用户消息（截断），跳过命令注入/工具结果 */
+function lastUserText(text) {
+  const lines = text.split('\n');
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i];
+    if (!line || line.indexOf('"user"') === -1) continue;
+    let d;
+    try { d = JSON.parse(line.trim()); } catch { continue; }
+    if (d.type !== 'user') continue;
+    let c = d.message && d.message.content;
+    if (Array.isArray(c)) { // content 块数组：取第一个 text 块（跳过 tool_result 等）
+      const t = c.find((b) => b && b.type === 'text' && typeof b.text === 'string');
+      c = t ? t.text : null;
+    }
+    if (typeof c !== 'string') continue;
+    const s = c.trim();
+    if (!s || s[0] === '<') continue; // 跳过 <command-...> 等系统注入
+    return s.length > 40 ? s.slice(0, 40) + '…' : s;
+  }
+  return null;
+}
+
+/** 会话标题：jsonl 中最近一条 ai-title 事件，无则用最后一条用户消息。带 TTL 缓存 */
+const titleCache = new Map(); // path → { title, readAt }
+const TITLE_TTL_MS = 30000;
+function sessionTitle(jsonlPath) {
+  if (!jsonlPath) return null;
+  const now = Date.now();
+  const cached = titleCache.get(jsonlPath);
+  if (cached && (now - cached.readAt) < TITLE_TTL_MS) return cached.title;
+  const tail = readTail(jsonlPath, 131072);
+  const title = findAiTitle(tail, true)
+    || findAiTitle(readHead(jsonlPath, 131072), false)
+    || lastUserText(tail)
+    || (cached ? cached.title : null);
+  titleCache.set(jsonlPath, { title, readAt: now });
+  return title;
+}
+
 /** 扫描所有 claude CLI 进程，返回 [{pid, sessionId|null, jiffies}] */
 function scanProcesses(execFn = execFileSync) {
   let out = '';
@@ -240,6 +311,7 @@ function scanSessions(opts = {}) {
       alive: !!proc,
       cwd: ev ? ev.cwd : null,
       project: ev && ev.cwd ? path.basename(ev.cwd) : (slug || null),
+      title: sessionTitle(jsonlPath),
       gitBranch: ev ? ev.gitBranch : null,
       lastRole,
       lastTs,
@@ -270,4 +342,5 @@ module.exports = {
   defaultClaudeHome,
   slugMatches,
   cwdToSlug,
+  sessionTitle,
 };
