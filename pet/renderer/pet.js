@@ -85,7 +85,9 @@ function renderSessions(sessions) {
     const dot = document.createElement('span');
     dot.className = 's-dot ' + s.state;
     const proj = document.createElement('span');
-    proj.className = 's-proj'; proj.textContent = s.project || s.sessionId.slice(0, 8);
+    const projName = s.project || s.sessionId.slice(0, 8);
+    proj.className = 's-proj';
+    proj.textContent = (multiSource && s.sourceName) ? `${s.sourceName}·${projName}` : projName;
     const meta = document.createElement('span');
     meta.className = 's-meta'; meta.textContent = STATE_LABEL[s.state] || s.state;
     li.append(dot, proj, meta);
@@ -120,7 +122,7 @@ pet.addEventListener('mousedown', (e) => {
 });
 panel.addEventListener('mousedown', (e) => { e.stopPropagation(); });
 
-// ---------- 5. 连接层（SSE） ----------
+// ---------- 5. 连接层（多源 SSE + 聚合） ----------
 const connEl = document.getElementById('connState');
 const connText = document.getElementById('connText');
 function setConn(up, label) {
@@ -128,21 +130,61 @@ function setConn(up, label) {
   connText.textContent = label;
 }
 
-let es = null, downTimer = null;
-function connect(base, token) {
-  const url = base.replace(/\/+$/, '') + '/events' + (token ? `?token=${encodeURIComponent(token)}` : '');
-  try { es = new EventSource(url); } catch (e) { setConn(false, 'bad url'); return; }
-  es.onopen = () => { setConn(true, base); clearTimeout(downTimer); };
+const PRIO = { waiting: 0, working: 1, done: 2, idle: 3, error: 3, offline: 4 };
+const sourceStates = new Map(); // name → { up, snap, downTimer }
+let multiSource = false;        // >1 源时会话条目带来源前缀
+
+function mergeAndApply() {
+  const all = [...sourceStates.entries()];
+  const ups = all.filter(([, st]) => st.up);
+  if (!ups.length) {
+    setConn(false, '重连中…');
+    applySnapshot({ pet: 'offline', reason: 'all sources unreachable', sessions: [] });
+    return;
+  }
+  const sessions = [];
+  for (const [name, st] of ups) {
+    if (!st.snap) continue;
+    for (const s of (st.snap.sessions || [])) sessions.push({ ...s, sourceName: name });
+  }
+  sessions.sort((a, b) =>
+    ((PRIO[a.state] ?? 3) - (PRIO[b.state] ?? 3)) || ((b.lastTs || 0) - (a.lastTs || 0)));
+  const top = sessions[0];
+  const pet = top ? (top.state === 'error' ? 'idle' : top.state) : 'idle';
+  const reason = top ? `${top.state} @ ${top.project || ''}` : 'no active sessions';
+  setConn(true, ups.map(([n]) => n).join(' + ') + (ups.length < all.length ? `（${all.length - ups.length} 源掉线）` : ''));
+  applySnapshot({ pet, reason, sessions });
+}
+
+function connectSource(src) {
+  const st = { up: false, snap: null, downTimer: null, es: null };
+  sourceStates.set(src.name, st);
+  const url = src.url.replace(/\/+$/, '') + '/events' +
+    (src.token ? `?token=${encodeURIComponent(src.token)}` : '');
+  let es;
+  try { es = new EventSource(url); } catch { mergeAndApply(); return; }
+  st.es = es;
+  const markUp = () => { clearTimeout(st.downTimer); st.downTimer = null; if (!st.up) { st.up = true; mergeAndApply(); } };
+  es.onopen = markUp;
   es.onmessage = (ev) => {
     if (!ev.data || ev.data[0] !== '{') return;
-    try { applySnapshot(JSON.parse(ev.data)); } catch {}
+    try { st.snap = JSON.parse(ev.data); } catch { return; }
+    markUp(); mergeAndApply();
   };
   es.onerror = () => {
-    setConn(false, '重连中…');
-    clearTimeout(downTimer);
-    // 连续掉线一段时间 → 进入 offline 形态
-    downTimer = setTimeout(() => applySnapshot({ pet: 'offline', reason: 'agent unreachable', sessions: [] }), 5000);
+    // EventSource 自动重连；连续 5s 连不上才把该源记为掉线
+    if (st.downTimer || !st.up) return;
+    st.downTimer = setTimeout(() => { st.up = false; st.downTimer = null; mergeAndApply(); }, 5000);
   };
+}
+
+function connectAll(sources) {
+  multiSource = sources.length > 1;
+  for (const src of sources) connectSource(src);
+  if (!sources.length) {
+    setConn(false, '未配置任何源');
+    applySnapshot({ pet: 'offline', reason: 'no sources configured', sessions: [] });
+  }
 }
 
 // ---------- 6. 启动：真实 / mock / demo ----------
@@ -176,10 +218,19 @@ function start() {
     return;
   }
 
-  // 真实：从 Electron 注入的配置取 base/token；浏览器直跑则默认 localhost
-  const cfg = (window.PET_CONFIG && window.PET_CONFIG.primary) || { url: 'http://127.0.0.1:47600', token: '' };
+  // 真实：优先经 IPC 实时取配置（重新加载后能拿到最新值），兜底用注入配置/默认
   setConn(false, 'connecting…');
-  connect(cfg.url, cfg.token);
+  Promise.resolve(window.petBridge && window.petBridge.getConfig ? window.petBridge.getConfig() : null)
+    .catch(() => null)
+    .then((live) => {
+      const cfg = live || window.PET_CONFIG || {};
+      let sources = Array.isArray(cfg.sources) ? cfg.sources : null;
+      if (!sources || !sources.length) {
+        const p = cfg.primary || { name: 'local', url: 'http://127.0.0.1:47600', token: '' };
+        sources = [{ name: p.name || 'local', url: p.url, token: p.token || '' }];
+      }
+      connectAll(sources.filter((s) => s.url));
+    });
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);

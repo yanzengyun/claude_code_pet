@@ -20,7 +20,8 @@
     "appId": "com.zengyuny.claudepet",
     "productName": "Claude Pet",
     "directories": { "output": "dist" },
-    "files": ["main.js", "preload.js", "renderer/**", "assets/**", "config.json"],
+    "files": ["main.js", "preload.js", "settings-preload.js", "renderer/**", "assets/**", "config.json"],
+    "extraResources": [{ "from": "../agent", "to": "agent", "filter": ["*.js"] }],
     "mac": {
       "category": "public.app-category.developer-tools",
       "icon": "assets/icon.png",

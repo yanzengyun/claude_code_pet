@@ -109,15 +109,16 @@ cd claude-desktop-pet/hooks
 
 ---
 
-## 五、监控本地 Mac 的 Claude Code（第二步）
+## 五、监控本地 Mac 的 Claude Code（图形化，一键开启）
 
-把 agent 也在 Mac 上跑一份（Mac 自带的 `~/.claude/projects` 它会直接读）：
-```bash
-cd claude-desktop-pet/agent
-# Mac 上 slugIncludes 设成你 Mac 项目路径的 slug（或留 null 看全部），然后：
-node server.js
-```
-桌宠 `config.json` 的 `url` 指向本地 `http://127.0.0.1:47600` 即可（与 vibe 二选一，或后续支持多源）。
+点托盘菜单 **「设置…」** → 勾选 **「自动监控本机 ~/.claude」** → 保存。
+桌宠会自动拉起一个内置本地 agent（默认端口 47601，无需手动 `node server.js`），
+**vibe 远程 + 本机双源同时监控**，小人显示两边里最需要你的状态；
+面板里的会话条目带 `来源·项目` 前缀区分。
+
+设置窗口同时可配：远程源地址/token、SSO 站点、通知与提示音开关——保存即生效，
+落盘在 `~/.cc-pet/config.json`（也可手改）。本地 agent 想加过滤可建 `~/.cc-pet/local-agent.json`
+（格式同 `agent/config.json`，默认监控本机全部项目）。
 
 ---
 

@@ -18,4 +18,6 @@ contextBridge.exposeInMainWorld('petBridge', {
   setIgnoreMouse: (ignore) => ipcRenderer.send('pet-ignore-mouse', ignore),
   // 手动拖拽：renderer 报告位移，main 移动窗口
   moveWindowBy: (dx, dy) => ipcRenderer.send('pet-move-by', { dx, dy }),
+  // 实时取配置（含 effectiveSources），重新加载后能拿到最新值
+  getConfig: () => ipcRenderer.invoke('pet-config-get'),
 });
