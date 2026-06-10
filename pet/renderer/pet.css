@@ -402,3 +402,6 @@ body[data-panel-side='left'] .panel { margin: 8px 0 12px 8px; }
 
 /* 眼珠跟随鼠标（JS 设 transform） */
 .pupil { transition: transform 0.08s linear; }
+
+/* 有文案即显示气泡（working 显示正在用的工具） */
+.bubble.show { opacity: 1; transform: scale(1) translateY(0); }

@@ -33,6 +33,13 @@ function buildSpark() {
 
 // ---------- 2. 状态文案 ----------
 const STATE_LABEL = { working: '思考中', waiting: '需要你', idle: '待命', done: '完成', offline: '离线' };
+// 工具名 → 人话（需 hooks 以 WITH_TOOLS=1 安装才有 PreToolUse 事件）
+const TOOL_LABEL = {
+  Bash: '执行命令', Edit: '修改代码', Write: '写文件', NotebookEdit: '改 Notebook',
+  Read: '读代码', Grep: '搜索代码', Glob: '找文件',
+  WebFetch: '查网页', WebSearch: '搜网页',
+  Task: '派子任务', Agent: '派子任务', TodoWrite: '整理待办', Skill: '调用技能',
+};
 function bubbleFor(snap) {
   const top = snap.sessions && snap.sessions[0];
   const proj = top && top.project ? top.project : '';
@@ -40,6 +47,10 @@ function bubbleFor(snap) {
     case 'waiting': return proj ? `需要你！${proj}` : '需要你！';
     case 'done':    return '完成 ✓';
     case 'offline': return '离线';
+    case 'working': {
+      const t = top && top.toolName;
+      return t ? `正在${TOOL_LABEL[t] || '用 ' + t}…` : '';
+    }
     default:        return '';
   }
 }
@@ -59,6 +70,7 @@ function applySnapshot(snap) {
   pet.setAttribute('data-state', snap.pet);
   const text = bubbleFor(snap);
   bubbleText.textContent = text;
+  bubble.classList.toggle('show', !!text); // working 等仅在有文案时显示气泡
 
   // 通知 Electron 主进程（用于系统通知/提示音/托盘）
   if (window.petBridge && snap.pet !== lastPet) {
