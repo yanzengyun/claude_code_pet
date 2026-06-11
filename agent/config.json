@@ -3,6 +3,10 @@
   "host": "127.0.0.1",
   "token": "",
   "slugIncludes": ["-home-q-vibe-projects-zengyuny"],
+  "providers": [
+    { "type": "claude", "name": "claude" },
+    { "type": "codex", "name": "codex" }
+  ],
   "scanIntervalMs": 1500,
   "heartbeatMs": 25000,
   "activeMs": 4000,

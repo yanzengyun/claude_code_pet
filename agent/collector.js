@@ -100,17 +100,24 @@ function lastCodexContentEvent(jsonlPath) {
   return null;
 }
 
+// session_meta 在文件头、写入后不变 → 按路径永久缓存，避免每拍重读 128KB
+const codexMetaCache = new Map(); // path → payload
 function codexSessionMeta(jsonlPath) {
+  if (codexMetaCache.has(jsonlPath)) return codexMetaCache.get(jsonlPath);
   const head = readHead(jsonlPath, 131072);
   const lines = head.split('\n');
   for (const line of lines) {
     if (!line || line.indexOf('"session_meta"') === -1) continue;
     try {
       const d = JSON.parse(line.trim());
-      if (d.type === 'session_meta' && d.payload) return d.payload;
+      if (d.type === 'session_meta' && d.payload) {
+        if (codexMetaCache.size > 2000) codexMetaCache.clear(); // 粗暴防膨胀
+        codexMetaCache.set(jsonlPath, d.payload);
+        return d.payload;
+      }
     } catch {}
   }
-  return null;
+  return null; // 没读到不缓存：文件头可能还没写完
 }
 
 /** 读文件头部最多 maxBytes 字节 */
@@ -167,6 +174,8 @@ function lastUserText(text) {
   return null;
 }
 
+// Codex 注入的非用户输入（环境上下文/历史回放/AGENTS 等），不能当标题
+const CODEX_INJECTED_RE = /^(<|The following is|#+\s*AGENTS|Caveat:)/i;
 function lastCodexUserText(text) {
   const lines = text.split('\n');
   for (let i = lines.length - 1; i >= 0; i--) {
@@ -178,7 +187,7 @@ function lastCodexUserText(text) {
     const s = codexTextFromContent(d.payload && d.payload.content);
     if (!s || !s.trim()) continue;
     const t = s.trim();
-    if (t[0] === '<') continue;
+    if (CODEX_INJECTED_RE.test(t)) continue;
     return t.length > 40 ? t.slice(0, 40) + '…' : t;
   }
   return null;
@@ -229,8 +238,13 @@ function readCodexTitles(codexHome) {
 function codexSessionTitle(jsonlPath, codexHome, sessionId) {
   const titles = readCodexTitles(codexHome);
   if (titles.has(sessionId)) return titles.get(sessionId);
-  const tail = readTail(jsonlPath, 131072);
-  return lastCodexUserText(tail);
+  // 索引没有 → 兜底读尾部用户消息，与 Claude 标题共用 TTL 缓存（path 不会撞）
+  const now = Date.now();
+  const cached = titleCache.get(jsonlPath);
+  if (cached && (now - cached.readAt) < TITLE_TTL_MS) return cached.title;
+  const title = lastCodexUserText(readTail(jsonlPath, 131072)) || (cached ? cached.title : null);
+  titleCache.set(jsonlPath, { title, readAt: now });
+  return title;
 }
 
 /** 扫描所有 claude CLI 进程，返回 [{pid, sessionId|null, jiffies}] */
@@ -278,9 +292,15 @@ function scanCodexProcesses(execFn = execFileSync) {
     if (!Number.isFinite(pid)) continue;
     if (!/(^|\/)codex\b/.test(args) && !/[/]codex-[^/\s]+/.test(args)) continue;
     if (/code-server|language-server|\bgrep\b|cc-pet/.test(args)) continue;
-    procs.push({ pid, sessionId: null, jiffies: readJiffies(pid) });
+    // codex 命令行不带 session id，用进程 cwd 归属到会话（读不到=别人的进程，自然排除）
+    procs.push({ pid, cwd: readProcCwd(pid), jiffies: readJiffies(pid) });
   }
   return procs;
+}
+
+/** 读 /proc/<pid>/cwd 符号链接；非 Linux / 无权限（他人进程）返回 null */
+function readProcCwd(pid) {
+  try { return fs.readlinkSync(`/proc/${pid}/cwd`); } catch { return null; }
 }
 
 /** 读 /proc/<pid>/stat 的 utime+stime（jiffies）；非 Linux 或失败返回 null */
@@ -357,17 +377,28 @@ function sessionIdFromCodexFile(file) {
   return m ? m[1] : base;
 }
 
+/** 日期目录（YYYY/MM/DD）是否整体早于回看窗口（多放一天余量抵消时区差） */
+function dateDirTooOld(parts, cutoffMs) {
+  if (!parts.length || !parts.every((s) => /^\d+$/.test(s))) return false;
+  const [y, m = 12, d = 31] = parts.map(Number);
+  const dirEndMs = Date.UTC(y, m - 1, d, 23, 59, 59) + 24 * 3600 * 1000;
+  return dirEndMs < cutoffMs;
+}
+
 function recentCodexSessionFiles(codexHome, lookbackMs, now, includes) {
   const sessionsDir = path.join(codexHome, 'sessions');
+  const cutoffMs = now - lookbackMs;
   const res = [];
-  function walk(dir, depth) {
+  function walk(dir, depth, parts) {
     if (depth > 4) return;
     let entries;
     try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
     for (const ent of entries) {
       const p = path.join(dir, ent.name);
       if (ent.isDirectory()) {
-        walk(p, depth + 1);
+        const nextParts = [...parts, ent.name];
+        if (dateDirTooOld(nextParts, cutoffMs)) continue; // 整个早于窗口的年/月/日直接跳过
+        walk(p, depth + 1, nextParts);
         continue;
       }
       if (!ent.isFile() || !ent.name.endsWith('.jsonl')) continue;
@@ -380,7 +411,7 @@ function recentCodexSessionFiles(codexHome, lookbackMs, now, includes) {
       res.push({ sessionId: (meta && meta.id) || sessionIdFromCodexFile(p), path: p, mtimeMs: st.mtimeMs, meta });
     }
   }
-  walk(sessionsDir, 0);
+  walk(sessionsDir, 0, []);
   return res;
 }
 
@@ -490,6 +521,9 @@ function scanSessions(opts = {}) {
   return sessions;
 }
 
+// codex 进程的 CPU 快照独立缓存（claude 的 cpuCache 每拍会整体重写，混用会互相清掉）
+const codexCpuCache = {};
+
 function scanCodexSessions(opts = {}) {
   const codexHome = opts.codexHome || defaultCodexHome();
   const now = opts.now || Date.now();
@@ -500,15 +534,46 @@ function scanCodexSessions(opts = {}) {
   const sourceName = opts.sourceName || 'codex';
 
   const files = recentCodexSessionFiles(codexHome, recentDoneMs, now, includes);
+
+  // 进程归属：codex 命令行无 session id，用 /proc/<pid>/cwd 对齐到该 cwd 下最新的会话
+  const cpuCache = opts.codexCpuCache || codexCpuCache;
+  const elapsedMs = Math.max(1, now - (opts.lastScanTs || (now - 1500)));
+  const procByCwd = new Map(); // cwd → { pid, cpuActive }
+  const newCpu = {};
+  for (const pr of scanCodexProcesses(opts.execFn)) {
+    if (!pr.cwd) continue;
+    let cpuActive = false;
+    if (pr.jiffies != null) {
+      newCpu[pr.pid] = pr.jiffies;
+      const prev = cpuCache[pr.pid];
+      if (prev != null && (pr.jiffies - prev) / CLK_TCK / (elapsedMs / 1000) > 0.15) cpuActive = true;
+    }
+    const cur = procByCwd.get(pr.cwd);
+    if (!cur || (cpuActive && !cur.cpuActive)) procByCwd.set(pr.cwd, { pid: pr.pid, cpuActive });
+  }
+  for (const k of Object.keys(cpuCache)) delete cpuCache[k];
+  Object.assign(cpuCache, newCpu);
+
+  const freshestByCwd = new Map(); // cwd → 该目录下 mtime 最新的会话文件
+  for (const f of files) {
+    const cwd = f.meta && f.meta.cwd;
+    if (!cwd) continue;
+    const cur = freshestByCwd.get(cwd);
+    if (!cur || f.mtimeMs > cur.mtimeMs) freshestByCwd.set(cwd, f);
+  }
+
   const sessions = [];
   for (const f of files) {
     const meta = f.meta || codexSessionMeta(f.path) || {};
     const ev = lastCodexContentEvent(f.path);
+    const cwd = meta.cwd || null;
+    const proc = (cwd && freshestByCwd.get(cwd) === f) ? procByCwd.get(cwd) : null;
+    const cpuActive = !!(proc && proc.cpuActive);
     const jsonlFresh = f.mtimeMs != null && (now - f.mtimeMs) <= activeMs;
     const lastRole = ev ? ev.role : null;
     const lastTs = ev ? ev.ts : (f.mtimeMs || null);
     let state;
-    if (jsonlFresh) {
+    if (cpuActive || jsonlFresh) {
       state = 'working';
     } else if (lastRole === 'assistant') {
       state = 'idle';
@@ -518,13 +583,12 @@ function scanCodexSessions(opts = {}) {
     } else {
       state = 'idle';
     }
-    const cwd = meta.cwd || null;
     sessions.push({
       sessionId: `${sourceName}:${f.sessionId}`,
       rawSessionId: f.sessionId,
       provider: sourceName,
-      pid: null,
-      alive: false,
+      pid: proc ? proc.pid : null,
+      alive: !!proc,
       cwd,
       project: cwd ? path.basename(cwd) : sourceName,
       title: codexSessionTitle(f.path, codexHome, f.sessionId),
@@ -532,7 +596,7 @@ function scanCodexSessions(opts = {}) {
       lastRole,
       lastTs,
       jsonlMtime: f.mtimeMs || null,
-      cpuActive: false,
+      cpuActive,
       state,
       source: 'heuristic',
     });

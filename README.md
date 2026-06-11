@@ -53,6 +53,10 @@ curl http://127.0.0.1:47602/status
 也可以复制 `agent/config.codex.example.json` 为自己的配置文件，再用 `CC_PET_CONFIG=/path/to/config.json bash start.sh` 启动。
 Codex 兼容读取 `~/.codex/sessions/YYYY/MM/DD/*.jsonl` 和 `~/.codex/session_index.jsonl`，同样按 `slugIncludes` 过滤项目路径；这部分不需要安装 hook，也不会修改 Claude / Codex 的 settings。
 
+> 精度说明：Codex 没有 hooks，状态全靠启发式（文件 mtime + 进程 CPU），长工具运行中可能短暂误判
+> idle / 触发一次假「完成」——和 Claude 未装 hooks 时的局限相同，属预期行为。
+> 等权限的 `waiting` 精确态同样只有 Claude（装了 hooks）才有。
+
 ---
 
 ## 二、在 Mac 上启动桌宠 pet
