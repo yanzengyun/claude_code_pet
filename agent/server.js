@@ -11,7 +11,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { scanSessions, slugMatches, cwdToSlug } = require('./collector.js');
+const { scanAllSessions, slugMatches, cwdToSlug } = require('./collector.js');
 const { aggregate } = require('./state.js');
 
 function loadConfig() {
@@ -28,6 +28,7 @@ function loadConfig() {
     recentDoneMs: 300000,
     hookTtlMs: 900000,
     doneWindowMs: 4000,
+    providers: null,            // null → 兼容旧配置，只扫 Claude；显式配置后可加 codex
   };
   let fileCfg = {};
   const cfgPath = process.env.CC_PET_CONFIG || path.join(__dirname, 'config.json');
@@ -38,6 +39,20 @@ function loadConfig() {
   if (process.env.CC_PET_TOKEN) cfg.token = process.env.CC_PET_TOKEN;
   if (process.env.CC_PET_SLUGS) cfg.slugIncludes = process.env.CC_PET_SLUGS.split(',').map(s => s.trim()).filter(Boolean);
   if (process.env.CC_PET_HOST) cfg.host = process.env.CC_PET_HOST;
+  if (process.env.CC_PET_PROVIDERS) {
+    cfg.providers = process.env.CC_PET_PROVIDERS.split(',').map((s) => s.trim()).filter(Boolean).map((type) => ({ type }));
+  }
+  if (Array.isArray(cfg.providers)) {
+    cfg.providers = cfg.providers.map((p) => ({
+      ...p,
+      type: p.type || p.name || 'claude',
+      slugIncludes: p.slugIncludes ?? cfg.slugIncludes,
+    }));
+    for (const p of cfg.providers) {
+      if (p.type === 'claude' && process.env.CLAUDE_HOME && !p.claudeHome) p.claudeHome = process.env.CLAUDE_HOME;
+      if (p.type === 'codex' && process.env.CODEX_HOME && !p.codexHome) p.codexHome = process.env.CODEX_HOME;
+    }
+  }
   return cfg;
 }
 
@@ -65,8 +80,8 @@ let lastSig = '';
 function tick(force = false) {
   const now = Date.now();
   pruneHooks(now);
-  const sessions = scanSessions({
-    claudeHome: cfg.claudeHome, slugIncludes: cfg.slugIncludes,
+  const sessions = scanAllSessions({
+    claudeHome: cfg.claudeHome, providers: cfg.providers, slugIncludes: cfg.slugIncludes,
     now, cpuCache, lastScanTs,
     activeMs: cfg.activeMs, graceMs: cfg.graceMs, recentDoneMs: cfg.recentDoneMs,
   });
@@ -184,6 +199,7 @@ server.listen(cfg.port, cfg.host, () => {
   tick(true);
   console.log(`[cc-pet-agent] listening http://${cfg.host}:${cfg.port}`);
   console.log(`[cc-pet-agent] slugIncludes=${JSON.stringify(cfg.slugIncludes)} token=${cfg.token ? 'set' : 'none'}`);
+  console.log(`[cc-pet-agent] providers=${JSON.stringify(cfg.providers || [{ type: 'claude' }])}`);
 });
 
 module.exports = { loadConfig };

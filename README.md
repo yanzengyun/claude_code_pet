@@ -40,6 +40,19 @@ bash stop.sh            # 需要时停止
   - `port` / `token`：默认 47600、无 token。要经公网代理暴露时建议设 `token`（pet 端配置里同步填上）。
 - 机器重启后 nohup 会丢，要长期跑可挂 cron：`*/5 * * * * .../agent/start.sh`（幂等）。
 
+### 可选：同时监控 Codex
+
+默认配置仍然只扫 Claude Code，避免影响已经在跑的共享 agent。要验证 Codex，优先用独立配置或环境变量起一个新端口：
+
+```bash
+cd /home/q/vibe/projects/zengyuny/claude-desktop-pet/agent
+CC_PET_PORT=47602 CC_PET_PROVIDERS=claude,codex bash start.sh
+curl http://127.0.0.1:47602/status
+```
+
+也可以复制 `agent/config.codex.example.json` 为自己的配置文件，再用 `CC_PET_CONFIG=/path/to/config.json bash start.sh` 启动。
+Codex 兼容读取 `~/.codex/sessions/YYYY/MM/DD/*.jsonl` 和 `~/.codex/session_index.jsonl`，同样按 `slugIncludes` 过滤项目路径；这部分不需要安装 hook，也不会修改 Claude / Codex 的 settings。
+
 ---
 
 ## 二、在 Mac 上启动桌宠 pet

@@ -2,7 +2,7 @@
 # stop.sh — 停止 cc-pet-agent（只停本目录这一份，不误杀同机其他人的）。
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-PORT="$(node -e 'try{process.stdout.write(String((require("'"$HERE"'/config.json").port)||47600))}catch(e){process.stdout.write("47600")}')"
+PORT="$(node -e 'const fs=require("fs"); const p=process.env.CC_PET_CONFIG || "'"$HERE"'/config.json"; let c={}; try{c=JSON.parse(fs.readFileSync(p,"utf8"))}catch{} process.stdout.write(String(process.env.CC_PET_PORT || c.port || 47600));')"
 PIDFILE="${CC_PET_PIDFILE:-/tmp/cc-pet-agent-$PORT.pid}"
 # 兼容旧版固定路径 pidfile
 [ -f "$PIDFILE" ] || { [ -f /tmp/cc-pet-agent.pid ] && PIDFILE=/tmp/cc-pet-agent.pid; } || true

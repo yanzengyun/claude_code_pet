@@ -3,7 +3,7 @@
 # pid/日志按端口隔离，同机多人各跑各的互不影响。
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-PORT="$(node -e 'try{process.stdout.write(String((require("'"$HERE"'/config.json").port)||47600))}catch(e){process.stdout.write("47600")}')"
+PORT="$(node -e 'const fs=require("fs"); const p=process.env.CC_PET_CONFIG || "'"$HERE"'/config.json"; let c={}; try{c=JSON.parse(fs.readFileSync(p,"utf8"))}catch{} process.stdout.write(String(process.env.CC_PET_PORT || c.port || 47600));')"
 PIDFILE="${CC_PET_PIDFILE:-/tmp/cc-pet-agent-$PORT.pid}"
 LOG="${CC_PET_LOG:-/tmp/cc-pet-agent-$PORT.log}"
 

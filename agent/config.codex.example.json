@@ -1,0 +1,26 @@
+{
+  "port": 47600,
+  "host": "127.0.0.1",
+  "token": "",
+  "slugIncludes": ["-home-q-vibe-projects-zengyuny"],
+  "providers": [
+    {
+      "type": "claude",
+      "name": "claude",
+      "claudeHome": null
+    },
+    {
+      "type": "codex",
+      "name": "codex",
+      "codexHome": null,
+      "slugIncludes": ["-home-q-vibe-projects-zengyuny"]
+    }
+  ],
+  "scanIntervalMs": 1500,
+  "heartbeatMs": 25000,
+  "activeMs": 4000,
+  "graceMs": 30000,
+  "recentDoneMs": 300000,
+  "hookTtlMs": 900000,
+  "doneWindowMs": 4000
+}
