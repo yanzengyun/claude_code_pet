@@ -85,6 +85,10 @@ bash build-dmg.sh          # 同时出 arm64 + x64；或 build-dmg.sh arm / inte
 - 安装：双击 dmg → 把「Claude Pet」拖进 Applications。
 - 这是**未签名**应用，首次打开被 Gatekeeper 拦时二选一：
   右键 App →「打开」→ 再点「打开」；或终端 `xattr -cr "/Applications/Claude Pet.app"`。
+- **dmg 通过网络发给别人后，对方打开报「已损坏」**：不是真坏——下载过程会被系统打上
+  隔离标记（quarantine），未签名应用带着这个标记在新版 macOS 上一律显示损坏。
+  对方装完后跑一条即可：`xattr -cr "/Applications/Claude Pet.app"`
+  （或安装前先对 dmg 清：`xattr -cr ~/Downloads/Claude*.dmg`）。本地自己构建的没有此标记，所以自用正常。
 - 装好后 App 自带托盘常驻，不再依赖 `npm start`；连接配置读 `~/.cc-pet/config.json`（没有则用 App 内置默认）。
 
 ---
