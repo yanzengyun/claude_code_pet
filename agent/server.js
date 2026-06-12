@@ -99,11 +99,39 @@ function refresh(force = false) {
   }
 }
 
-/** 全量扫描（重，只按定时器节奏跑） */
+// ---- 按订阅动态收窄扫描范围（共享 agent：没人看谁就不扫谁，没人连就不扫） ----
+// /status 一次性请求用租约保活（硬件轮询等场景），SSE 订阅直接看在线集合
+const statusLeases = new Map(); // slug串 → 过期时间
+const STATUS_LEASE_MS = 90 * 1000;
+
+/** 计算本拍扫描范围：配置有固定白名单 → 用配置；否则 = 全部订阅者的 slug 并集。
+ *  返回 null=扫全部（有无过滤订阅者），[]=没人在看（跳过扫描），数组=并集 */
+function scanScope(now) {
+  if (cfg.slugIncludes && cfg.slugIncludes.length) return cfg.slugIncludes;
+  const slugs = new Set();
+  for (const res of clients) {
+    if (!res.__slugIncludes) return null; // 有人订阅全量
+    for (const s of res.__slugIncludes) slugs.add(s);
+  }
+  for (const [k, exp] of statusLeases) {
+    if (exp <= now) { statusLeases.delete(k); continue; }
+    if (k === '*') return null;
+    for (const s of k.split(',')) slugs.add(s);
+  }
+  return [...slugs];
+}
+
+/** 全量扫描（重，只按定时器节奏跑；范围随订阅动态收窄） */
 function tick(force = false) {
   const now = Date.now();
+  const scope = scanScope(now);
+  if (Array.isArray(scope) && scope.length === 0) {
+    lastSessions = []; // 没有任何订阅者：完全不扫文件，agent 近乎零负载待机
+    refresh(force);
+    return;
+  }
   lastSessions = scanAllSessions({
-    claudeHome: cfg.claudeHome, providers: cfg.providers, slugIncludes: cfg.slugIncludes,
+    claudeHome: cfg.claudeHome, providers: cfg.providers, slugIncludes: scope,
     now, cpuCache, lastScanTs,
     activeMs: cfg.activeMs, graceMs: cfg.graceMs, recentDoneMs: cfg.recentDoneMs,
   });
@@ -161,7 +189,10 @@ const server = http.createServer((req, res) => {
 
   if (pathName === '/status') {
     if (!checkToken(url)) return sendJson(res, 401, { error: 'bad token' });
-    return sendJson(res, 200, filterSnapshot(snapshot, slugParam(url), cwdToSlug));
+    const includes = slugParam(url);
+    // 一次性请求租约 90s：让轮询方（硬件设备等）也能把扫描范围保持住
+    statusLeases.set(includes ? includes.join(',') : '*', Date.now() + STATUS_LEASE_MS);
+    return sendJson(res, 200, filterSnapshot(snapshot, includes, cwdToSlug));
   }
 
   if (pathName === '/hook' && req.method === 'POST') {
@@ -206,6 +237,7 @@ const server = http.createServer((req, res) => {
     res.write(`data: ${JSON.stringify(filterSnapshot(snapshot, res.__slugIncludes, cwdToSlug))}\n\n`); // 立即给当前态
     clients.add(res);
     req.on('close', () => clients.delete(res));
+    setImmediate(() => tick(true)); // 新订阅者：立刻按新范围扫一拍，首屏不等下个周期
     return;
   }
 
