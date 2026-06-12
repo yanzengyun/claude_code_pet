@@ -5,16 +5,21 @@
  */
 
 // hook 事件名 → session 状态
+// 注意：SubagentStop 不映射 working —— 后台子任务可能在主轮 Stop 之后才结束，
+// 若映射 working 会把已完成的会话重新钉成"思考中"（实测踩过）。
 const HOOK_STATE = {
   UserPromptSubmit: 'working',
   PreToolUse: 'working',
   PostToolUse: 'working',
-  SubagentStop: 'working',
   Notification: 'waiting',
   Stop: 'idle',
   SessionStart: 'idle',
   SessionEnd: 'offline',
 };
+
+// working 类事件真干活时会连续刷新（每次工具调用都有），权威期短才安全；
+// Stop/Notification 是终态/等待语义，才配长权威期
+const WORKING_EVENTS = new Set(['UserPromptSubmit', 'PreToolUse', 'PostToolUse']);
 
 function hookEventToState(event) {
   return HOOK_STATE[event] || null;
@@ -36,6 +41,7 @@ function aggregate(p = {}) {
   const now = p.now || Date.now();
   const opts = p.opts || {};
   const hookTtlMs = opts.hookTtlMs ?? 15 * 60 * 1000; // hook 态最长有效期（防卡死）
+  const workingHookTtlMs = opts.workingHookTtlMs ?? 2 * 60 * 1000; // working 类事件的短权威期
   const doneWindowMs = opts.doneWindowMs ?? 4000;
   const hookState = p.hookState || {};
   const prev = p.prev || { sessionStates: {}, doneUntil: {}, pet: 'idle' };
@@ -66,15 +72,17 @@ function aggregate(p = {}) {
     let state = s.state;
     let source = 'heuristic';
 
-    // 1) hook 权威覆盖（在 TTL 内）
+    // 1) hook 权威覆盖（在 TTL 内；working 类事件用短 TTL，超时回落启发式）
     const h = hookState[sid];
-    if (h && hookEventToState(h.event) && (now - h.ts) < hookTtlMs) {
+    const ttl = h && WORKING_EVENTS.has(h.event) ? Math.min(hookTtlMs, workingHookTtlMs) : hookTtlMs;
+    if (h && hookEventToState(h.event) && (now - h.ts) < ttl) {
       const hs = hookEventToState(h.event);
       if (hs === 'offline') {
         continue; // SessionEnd：从展示里移除
       }
       state = hs;
       source = 'hook';
+      s.hookEvent = h.event; // 可观测性：当前权威态来自哪个 hook 事件
       if (h.toolName) s.toolName = h.toolName;
       if (!s.cwd && h.cwd) s.cwd = h.cwd;
       if (!s.project && h.project) s.project = h.project;

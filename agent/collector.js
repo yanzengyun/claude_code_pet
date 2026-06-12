@@ -433,7 +433,7 @@ function scanSessions(opts = {}) {
   const includes = opts.slugIncludes || null; // 例：['-home-q-vibe-projects-zengyuny']
 
   const procs = scanProcesses(execFn);
-  const elapsedMs = Math.max(1, now - lastScanTs);
+  const elapsedMs = Math.max(500, now - lastScanTs); // 下限 500ms：连续快扫时防 CPU 增量虚高误判
 
   // sessionId -> 进程（取第一个匹配）
   const procBySession = new Map();
@@ -537,7 +537,7 @@ function scanCodexSessions(opts = {}) {
 
   // 进程归属：codex 命令行无 session id，用 /proc/<pid>/cwd 对齐到该 cwd 下最新的会话
   const cpuCache = opts.codexCpuCache || codexCpuCache;
-  const elapsedMs = Math.max(1, now - (opts.lastScanTs || (now - 1500)));
+  const elapsedMs = Math.max(500, now - (opts.lastScanTs || (now - 1500))); // 同上，防虚高
   const procByCwd = new Map(); // cwd → { pid, cpuActive }
   const newCpu = {};
   for (const pr of scanCodexProcesses(opts.execFn)) {
