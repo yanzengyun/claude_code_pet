@@ -63,6 +63,7 @@ const cpuCache = {};
 let lastScanTs = Date.now();
 let prevAgg = { sessionStates: {}, doneUntil: {}, pet: 'idle' };
 let snapshot = { pet: 'idle', reason: 'starting', sessions: [], ts: Date.now() };
+let lastHookAt = 0; // 最近一次收到（且通过过滤的）hook 事件时间
 const hookState = {};            // sid -> { event, ts, cwd, project, toolName }
 const clients = new Set();       // SSE 响应对象
 
@@ -91,7 +92,7 @@ function tick(force = false) {
     opts: { hookTtlMs: cfg.hookTtlMs, doneWindowMs: cfg.doneWindowMs },
   });
   prevAgg = agg.prev;
-  snapshot = { pet: agg.pet, reason: agg.reason, sessions: agg.sessions, ts: agg.ts, changedAt: agg.changedAt };
+  snapshot = { pet: agg.pet, reason: agg.reason, sessions: agg.sessions, ts: agg.ts, changedAt: agg.changedAt, lastHookAt: lastHookAt || null };
   const s = sig(snapshot);
   if (force || s !== lastSig) {
     lastSig = s;
@@ -162,6 +163,7 @@ const server = http.createServer((req, res) => {
           project: d.project || (d.cwd ? path.basename(d.cwd) : null),
           toolName: d.toolName || d.tool_name || null,
         };
+        lastHookAt = Date.now(); // 供客户端判断「hooks 实际已生效」（可能由别的账号安装）
         tick(true); // 立即反映
       }
       sendJson(res, 200, { ok: true });

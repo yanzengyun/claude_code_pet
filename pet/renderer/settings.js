@@ -65,12 +65,13 @@ const HOOKS_LABEL = {
   none: '未安装（启发式可用，缺等权限提醒/工具气泡）',
   basic: '✅ 已安装（基础版，可升级工具事件）',
   full: '✅ 已安装（完整版）',
+  'active-elsewhere': '✅ 已生效（由运行 Claude 的账号安装，无需操作）',
   error: '检测失败（SSH 不通？）',
   disabled: '先启用 SSH 自动连接并保存',
 };
 function setHooksUi(status) {
   $('hooksState').textContent = HOOKS_LABEL[status] || status;
-  $('hooksInstall').hidden = status === 'full';
+  $('hooksInstall').hidden = status === 'full' || status === 'active-elsewhere';
   $('hooksInstall').textContent = status === 'basic' ? '升级' : '安装';
   $('hooksUninstall').hidden = !(status === 'basic' || status === 'full');
 }
@@ -98,6 +99,37 @@ $('hooksInstall').addEventListener('click', () => runHooks('install',
   '将修改远端 ~/.claude/settings.json 注册 cc-pet 钩子（含工具事件）。\n自动备份、只增不改，不影响已有配置。继续？'));
 $('hooksUninstall').addEventListener('click', () => runHooks('uninstall',
   '将从远端 ~/.claude/settings.json 移除 cc-pet 钩子（自动备份）。继续？'));
+
+// ---------- 本机 hooks（不装则启发式兜底） ----------
+function setLocalHooksUi(status) {
+  $('lhState').textContent = HOOKS_LABEL[status] || status;
+  $('lhInstall').hidden = status === 'full';
+  $('lhInstall').textContent = status === 'basic' ? '升级' : '安装';
+  $('lhUninstall').hidden = !(status === 'basic' || status === 'full');
+}
+async function checkLocalHooks() {
+  const r = await window.settingsBridge.localHooksStatus();
+  setLocalHooksUi(r.status);
+}
+async function runLocalHooks(action, confirmText) {
+  if (!window.confirm(confirmText)) return;
+  const btns = [$('lhCheck'), $('lhInstall'), $('lhUninstall')];
+  btns.forEach((b) => { b.disabled = true; });
+  $('lhState').textContent = '执行中…（修改前自动备份）';
+  const r = action === 'install'
+    ? await window.settingsBridge.localHooksInstall()
+    : await window.settingsBridge.localHooksUninstall();
+  btns.forEach((b) => { b.disabled = false; });
+  if (!r.ok) { $('lhState').textContent = `失败：${r.msg}`; return; }
+  await checkLocalHooks();
+  $('lhState').textContent += '（对新开的会话生效）';
+}
+$('lhCheck').addEventListener('click', checkLocalHooks);
+$('lhInstall').addEventListener('click', () => runLocalHooks('install',
+  '将修改本机 ~/.claude/settings.json 注册 cc-pet 钩子（含工具事件），并把本机 agent 注册进广播列表。\n自动备份、只增不改。继续？'));
+$('lhUninstall').addEventListener('click', () => runLocalHooks('uninstall',
+  '将从本机 ~/.claude/settings.json 移除 cc-pet 钩子（自动备份）。继续？'));
+checkLocalHooks(); // 本机检测零成本，打开设置即显示
 
 $('save').addEventListener('click', save);
 $('cancel').addEventListener('click', () => window.close());

@@ -237,7 +237,28 @@ async function hooksStatus() {
   const r = await runSsh(`echo ${b64} | base64 -d | python3`);
   if (r.code !== 0) return { status: 'error', err: (r.err || '').trim().slice(0, 120) };
   const s = r.out.trim().split('\n').pop();
+  if (s === 'none') {
+    // SSH 账号的 settings 里没有 ≠ 没生效：Claude 可能跑在别的账号下（如 vibe 网页终端），
+    // 问 agent 实际收没收到过 hook 事件
+    const live = await statusLastHookAt();
+    if (live) return { status: 'active-elsewhere' };
+  }
   return { status: ['none', 'basic', 'full'].includes(s) ? s : 'error' };
+}
+
+/** 读 agent /status 的 lastHookAt（经隧道），失败返回 0 */
+function statusLastHookAt() {
+  return new Promise((resolve) => {
+    const req = http.get({ host: '127.0.0.1', port: cfg.localPort, path: '/status', timeout: 2500 }, (res) => {
+      let body = '';
+      res.on('data', (d) => { body += d; if (body.length > 1e6) req.destroy(); });
+      res.on('end', () => {
+        try { resolve(JSON.parse(body).lastHookAt || 0); } catch { resolve(0); }
+      });
+    });
+    req.on('error', () => resolve(0));
+    req.on('timeout', () => { req.destroy(); resolve(0); });
+  });
 }
 
 async function hooksInstall() {

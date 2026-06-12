@@ -8,4 +8,8 @@ contextBridge.exposeInMainWorld('settingsBridge', {
   hooksStatus: () => ipcRenderer.invoke('hooks-status'),
   hooksInstall: () => ipcRenderer.invoke('hooks-install'),
   hooksUninstall: () => ipcRenderer.invoke('hooks-uninstall'),
+  // 本机 hooks（监控本机模式）
+  localHooksStatus: () => ipcRenderer.invoke('local-hooks-status'),
+  localHooksInstall: () => ipcRenderer.invoke('local-hooks-install'),
+  localHooksUninstall: () => ipcRenderer.invoke('local-hooks-uninstall'),
 });

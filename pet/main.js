@@ -238,7 +238,7 @@ function applyConfig() {
 function openSettings() {
   if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.focus(); return; }
   settingsWin = new BrowserWindow({
-    width: 460, height: 900, title: 'Claude Pet 设置',
+    width: 460, height: 950, title: 'Claude Pet 设置',
     resizable: false, minimizable: false, maximizable: false, fullscreenable: false,
     webPreferences: {
       preload: path.join(__dirname, 'settings-preload.js'),
@@ -290,6 +290,52 @@ ipcMain.handle('pet-config-get', () => ({ ...cfg, sources: effectiveSources() })
 ipcMain.handle('hooks-status', () => connector.hooksStatus());
 ipcMain.handle('hooks-install', () => connector.hooksInstall());
 ipcMain.handle('hooks-uninstall', () => connector.hooksUninstall());
+
+// ---------- 本机 hooks（监控本机模式用；改的是本机 ~/.claude/settings.json） ----------
+function localHooksDir() {
+  const bases = [path.join(__dirname, '..'), process.resourcesPath || ''];
+  for (const b of bases) {
+    if (b && fs.existsSync(path.join(b, 'hooks', 'install-hooks.sh'))) return path.join(b, 'hooks');
+  }
+  return null;
+}
+function localHooksStatus() {
+  try {
+    const d = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.claude', 'settings.json'), 'utf8'));
+    const h = d.hooks || {};
+    const has = (ev) => (h[ev] || []).some((e) => (e.hooks || []).some((x) => (x.command || '').includes('cc-pet-notify')));
+    return { status: has('Stop') ? (has('PreToolUse') ? 'full' : 'basic') : 'none' };
+  } catch {
+    return { status: 'none' };
+  }
+}
+/** 把本机 agent 注册进 hook 广播列表（幂等），否则事件会发去 47600 被远端拒收 */
+function registerLocalAgentUrl() {
+  try {
+    const lp = path.join(os.homedir(), '.cc-pet', 'agents.list');
+    fs.mkdirSync(path.dirname(lp), { recursive: true });
+    const url = `http://127.0.0.1:${cfg.localMonitor.port || 47601}`;
+    const cur = fs.existsSync(lp) ? fs.readFileSync(lp, 'utf8') : '';
+    if (!cur.split('\n').map((s) => s.trim()).includes(url)) fs.appendFileSync(lp, url + '\n');
+  } catch {}
+}
+function runLocalHooksScript(script) {
+  const dir = localHooksDir();
+  if (!dir) return Promise.resolve({ ok: false, msg: '找不到 hooks 脚本目录' });
+  return new Promise((resolve) => {
+    cp.execFile('bash', [path.join(dir, script), '--apply', ...(script.startsWith('install') ? ['--with-tools'] : [])],
+      { timeout: 30000 }, (err, out, errout) => {
+        resolve({ ok: !err, msg: String(err ? (errout || out || err.message) : out).trim().slice(-300) });
+      });
+  });
+}
+ipcMain.handle('local-hooks-status', () => localHooksStatus());
+ipcMain.handle('local-hooks-install', async () => {
+  const r = await runLocalHooksScript('install-hooks.sh');
+  if (r.ok) registerLocalAgentUrl();
+  return r;
+});
+ipcMain.handle('local-hooks-uninstall', () => runLocalHooksScript('uninstall-hooks.sh'));
 
 // ---------- 面板开合：窗口向小人旁边扩展（默认右侧，贴屏幕边时换左侧） ----------
 const PANEL_W = 240, PANEL_H_EXTRA = 110;
