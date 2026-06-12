@@ -125,4 +125,25 @@ function aggregate(p = {}) {
   };
 }
 
-module.exports = { aggregate, hookEventToState, HOOK_STATE, PET_PRIORITY };
+/**
+ * 按订阅方的 slug 白名单过滤快照（共享 agent 多人订阅用）。
+ * @param snap 全量快照  @param includes slug 子串数组  @param slugOf cwd→slug 函数
+ */
+function filterSnapshot(snap, includes, slugOf) {
+  if (!includes || !includes.length) return snap;
+  const sessions = (snap.sessions || []).filter((s) => {
+    const slug = slugOf(s.cwd || '');
+    return includes.some((inc) => slug.includes(inc));
+  });
+  let pet = 'idle';
+  let reason = 'no active sessions';
+  if (sessions.length) {
+    const top = sessions.reduce((best, s) =>
+      ((PET_PRIORITY[s.state] ?? 3) < (PET_PRIORITY[best.state] ?? 3) ? s : best), sessions[0]);
+    pet = top.state === 'error' ? 'idle' : top.state;
+    reason = `${top.state} @ ${top.project || String(top.sessionId || '').slice(0, 8)}`;
+  }
+  return { ...snap, pet, reason, sessions };
+}
+
+module.exports = { aggregate, hookEventToState, HOOK_STATE, PET_PRIORITY, filterSnapshot };

@@ -18,8 +18,12 @@ const DEFAULT_CFG = {
   sources: null,                 // [{name,url,token,enabled}]；null → 由 primary 生成
   monitor: 'remote',             // 监控目标：'remote'（vibe）| 'local'（本机），二选一
   skin: 'claude',                // 皮肤：'claude'（官方小人）| 'squirtle'（像素小蓝龟）
-  // SSH 自动连接：填机器+端口 → 自动隧道 + 自动部署/拉起远端 agent（需 SSH 免密）
-  remote: { autoConnect: false, sshHost: '', remotePort: 47600, localPort: null, slugIncludes: '' },
+  // SSH 自动连接：标准模式填机器+端口（可自动部署）；vibe 模式只填用户名 ——
+  // 连共享 agent（固定端口，平台侧 cron 保活），订阅时带 slug 服务端按人过滤
+  remote: {
+    autoConnect: false, mode: 'standard', sshHost: '', remotePort: 47600, localPort: null,
+    slugIncludes: '', vibeUser: '', vibeHost: 'l-picservice4.tj.cn5', vibePort: 47888,
+  },
   localMonitor: { enabled: false, port: 47601 }, // 内置 agent 监控本机 ~/.claude
   soundOnWaiting: true,
   soundOnDone: false,
@@ -48,23 +52,34 @@ function loadConfig() {
   return c;
 }
 
-/** 自动连接是否生效（监控远程 + 开了开关 + 填了机器） */
-function autoConnectOn() {
-  return cfg.monitor !== 'local' && !!cfg.remote.autoConnect && !!cfg.remote.sshHost;
-}
-
-/** 给 connector 的配置 */
+/** 给 connector 的配置（vibe 模式只凭用户名：连共享 agent，订阅时按 slug 过滤） */
 function connectorCfg() {
   const r = cfg.remote;
+  if (r.mode === 'vibe') {
+    const u = String(r.vibeUser || '').trim();
+    const port = parseInt(r.vibePort, 10) || 47888;
+    return {
+      enabled: cfg.monitor !== 'local' && !!r.autoConnect && !!u,
+      sshHost: `${u}@${String(r.vibeHost || 'l-picservice4.tj.cn5').trim()}`,
+      remotePort: port,
+      localPort: port,
+      slugIncludes: [`-home-q-vibe-projects-${u}`],
+      tunnelOnly: true, // 共享 agent 由平台侧 cron 保活，客户端不部署
+    };
+  }
   const remotePort = parseInt(r.remotePort, 10) || 47600;
   return {
-    enabled: autoConnectOn(),
+    enabled: cfg.monitor !== 'local' && !!r.autoConnect && !!String(r.sshHost || '').trim(),
     sshHost: String(r.sshHost || '').trim(),
     remotePort,
     localPort: parseInt(r.localPort, 10) || remotePort,
     slugIncludes: String(r.slugIncludes || '').split(',').map((s) => s.trim()).filter(Boolean),
+    tunnelOnly: false,
   };
 }
+
+/** 自动连接是否生效 */
+function autoConnectOn() { return connectorCfg().enabled; }
 let cfg = loadConfig();
 
 /** 渲染层实际要订阅的源：按监控目标二选一（vibe 远程 或 本机内置 agent） */
@@ -74,8 +89,11 @@ function effectiveSources() {
   }
   if (autoConnectOn()) {
     const c = connectorCfg();
-    const name = (c.sshHost.split('@').pop() || 'remote').split('.')[0];
-    return [{ name, url: `http://127.0.0.1:${c.localPort}`, token: '' }];
+    const r = cfg.remote;
+    const name = r.mode === 'vibe' ? r.vibeUser : (c.sshHost.split('@').pop() || 'remote').split('.')[0];
+    // vibe 模式：订阅共享 agent 时带上自己的 slug，服务端按人过滤
+    const slug = r.mode === 'vibe' ? `-home-q-vibe-projects-${r.vibeUser}` : '';
+    return [{ name, url: `http://127.0.0.1:${c.localPort}`, token: '', slug }];
   }
   return cfg.sources.filter((s) => s.enabled !== false && s.url);
 }
@@ -264,10 +282,14 @@ ipcMain.handle('settings-save', (_e, next) => {
     skin: next.skin === 'squirtle' ? 'squirtle' : 'claude',
     remote: {
       autoConnect: !!(next.remote && next.remote.autoConnect),
+      mode: (next.remote && next.remote.mode) === 'vibe' ? 'vibe' : 'standard',
       sshHost: String((next.remote && next.remote.sshHost) || '').trim(),
       remotePort: parseInt(next.remote && next.remote.remotePort, 10) || 47600,
       localPort: parseInt(next.remote && next.remote.localPort, 10) || null,
       slugIncludes: String((next.remote && next.remote.slugIncludes) || '').trim(),
+      vibeUser: String((next.remote && next.remote.vibeUser) || '').trim(),
+      vibeHost: String((next.remote && next.remote.vibeHost) || 'l-picservice4.tj.cn5').trim(),
+      vibePort: parseInt(next.remote && next.remote.vibePort, 10) || 47888,
     },
     localMonitor: {
       enabled: next.monitor === 'local',

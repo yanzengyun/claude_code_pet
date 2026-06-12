@@ -14,10 +14,14 @@ async function load() {
   $('skinSquirtle').checked = cfg.skin === 'squirtle';
   const rc = cfg.remote || {};
   $('rcEnabled').checked = !!rc.autoConnect;
+  $('rcModeVibe').checked = rc.mode === 'vibe';
+  $('rcModeStd').checked = rc.mode !== 'vibe';
+  $('rcVibeUser').value = rc.vibeUser || '';
   $('rcHost').value = rc.sshHost || '';
   $('rcPort').value = rc.remotePort || 47600;
   $('rcSlugs').value = rc.slugIncludes || '';
-  if (rc.autoConnect && rc.sshHost) checkHooks(); // 打开设置时自动检测（只读）
+  toggleRcMode();
+  if (rc.autoConnect && (rc.sshHost || rc.vibeUser)) checkHooks(); // 打开设置时自动检测（只读）
   $('srcName').value = src.name || 'vibe';
   $('srcUrl').value = src.url || '';
   $('srcToken').value = src.token || '';
@@ -35,6 +39,8 @@ async function save() {
     skin: $('skinSquirtle').checked ? 'squirtle' : 'claude',
     remote: {
       autoConnect: $('rcEnabled').checked,
+      mode: $('rcModeVibe').checked ? 'vibe' : 'standard',
+      vibeUser: $('rcVibeUser').value.trim(),
       sshHost: $('rcHost').value.trim(),
       remotePort: parseInt($('rcPort').value, 10) || 47600,
       slugIncludes: $('rcSlugs').value.trim(),
@@ -130,6 +136,15 @@ $('lhInstall').addEventListener('click', () => runLocalHooks('install',
 $('lhUninstall').addEventListener('click', () => runLocalHooks('uninstall',
   '将从本机 ~/.claude/settings.json 移除 cc-pet 钩子（自动备份）。继续？'));
 checkLocalHooks(); // 本机检测零成本，打开设置即显示
+
+// 连接方式切换：vibe 只显示用户名，标准显示机器/端口/过滤
+function toggleRcMode() {
+  const vibe = $('rcModeVibe').checked;
+  document.getElementById('rowVibeUser').style.display = vibe ? '' : 'none';
+  document.querySelectorAll('.rowStd').forEach((el) => { el.style.display = vibe ? 'none' : ''; });
+}
+$('rcModeVibe').addEventListener('change', toggleRcMode);
+$('rcModeStd').addEventListener('change', toggleRcMode);
 
 $('save').addEventListener('click', save);
 $('cancel').addEventListener('click', () => window.close());

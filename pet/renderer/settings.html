@@ -63,11 +63,15 @@
 
   <fieldset>
     <legend>SSH 自动连接（推荐，需已配免密）</legend>
-    <label class="check"><input type="checkbox" id="rcEnabled"> 启用：自动隧道 + 自动部署/拉起远端 agent</label>
-    <div class="row"><label>SSH 机器</label><input type="text" id="rcHost" placeholder="zengyuny@l-picservice4.tj.cn5 或 ~/.ssh/config 别名"></div>
-    <div class="row"><label>远端端口</label><input type="number" id="rcPort" placeholder="47600"></div>
-    <div class="row"><label>项目过滤</label><input type="text" id="rcSlugs" placeholder="-home-q-vibe-projects-zengyuny（共享机务必填，逗号分隔，空=全部）"></div>
-    <p class="hint">远端机器只需有 node 和 SSH 免密——agent 会自动部署到 ~/.cc-pet-agent，掉线/睡眠唤醒自动重连。</p>
+    <label class="check"><input type="checkbox" id="rcEnabled"> 启用：自动隧道 + 自动连接（掉线/睡眠唤醒自愈）</label>
+    <label class="check"><input type="radio" name="rcMode" id="rcModeVibe"> vibe 共享机（只填用户名，连共享 agent）</label>
+    <div class="row" id="rowVibeUser"><label>vibe 用户名</label><input type="text" id="rcVibeUser" placeholder="如 zengyuny（SSH 账号=用户名）"></div>
+    <label class="check"><input type="radio" name="rcMode" id="rcModeStd"> 标准机器（Claude 在 SSH 账号家目录，可自动部署 agent）</label>
+    <div class="row rowStd"><label>SSH 机器</label><input type="text" id="rcHost" placeholder="user@host 或 ~/.ssh/config 别名"></div>
+    <div class="row rowStd"><label>远端端口</label><input type="number" id="rcPort" placeholder="47600"></div>
+    <div class="row rowStd"><label>项目过滤</label><input type="text" id="rcSlugs" placeholder="逗号分隔，空=全部（共享机务必填）"></div>
+    <p class="hint">vibe 模式：前提仅 SSH 免密，agent 由平台侧统一保活。标准模式：远端有 node 即可，agent
+      自动部署到 ~/.cc-pet-agent 并拉起。</p>
     <div class="row" style="margin-top:8px"><label>精确钩子</label>
       <span id="hooksState" style="flex:1">未检测</span>
       <button id="hooksCheck" type="button">检测</button>

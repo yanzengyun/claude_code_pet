@@ -194,6 +194,10 @@ async function ensure(why) {
     await sleep(1800);
     if (await probeHealth(cfg.localPort)) { ok(); return; }
 
+    // vibe 模式：会话文件在平台账号家目录（700），SSH 账号部署不了满血 agent；
+    // agent 由平台侧 cron 保活，这里只管隧道+重试探测
+    if (cfg.tunnelOnly) { fail('远端 agent 未运行（等待平台侧 cron 拉起…）'); return; }
+
     // 隧道有了但 agent 不在（或 ssh 失败 —— 下面的部署/启动会把 stderr 透出来）
     setPhase('deploying');
     const dep = await deployIfNeeded();

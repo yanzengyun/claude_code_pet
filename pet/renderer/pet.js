@@ -277,8 +277,10 @@ function mergeAndApply() {
 function connectSource(src) {
   const st = { up: false, snap: null, downTimer: null, es: null };
   sourceStates.set(src.name, st);
-  const url = src.url.replace(/\/+$/, '') + '/events' +
-    (src.token ? `?token=${encodeURIComponent(src.token)}` : '');
+  const q = [];
+  if (src.token) q.push(`token=${encodeURIComponent(src.token)}`);
+  if (src.slug) q.push(`slug=${encodeURIComponent(src.slug)}`); // 共享 agent：按自己的 slug 订阅
+  const url = src.url.replace(/\/+$/, '') + '/events' + (q.length ? `?${q.join('&')}` : '');
   let es;
   try { es = new EventSource(url); } catch { mergeAndApply(); return; }
   st.es = es;

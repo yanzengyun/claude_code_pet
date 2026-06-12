@@ -189,19 +189,26 @@ cd claude-desktop-pet/hooks
 
 ## 六、多人共用与二次开发（同机其他同学看这里）
 
-**vibe 新用户两步接入**（hooks 全机已装，无需任何 settings 改动）：
+**架构：机器级一次配置（管理员）+ 用户零平台操作（同事）**
 
-```bash
-# ① 在你自己的 vibe 网页终端跑一次（专属满血 agent + 广播注册 + cron 保活，全包）：
-bash /home/q/vibe/projects/zengyuny/claude-desktop-pet/scripts/vibe-user-setup.sh <你的vibe用户名>
-
-# ② Mac 上：clone 本仓库 → cd pet && npm install && npm start
-#    设置 →「SSH 自动连接」：填 你的工号@l-picservice4.tj.cn5 + 脚本输出的端口和 slug → 保存
+```
+管理员跑一次：共享 agent（47888，看全机会话，cron 保活）        ← scripts/vibe-shared-setup.sh
+同事每个人：  Mac 客户端选「vibe 共享机」填自己用户名 → 完事     ← 订阅自带 ?slug=，服务端按人过滤
 ```
 
-为什么 agent 要在 vibe 终端里起而不是 Mac 远程部署：会话文件在平台账号家目录（700），
-只有 vibe 终端环境（平台账号身份）读得到——在这里跑才是满血版（启发式+标题+Codex）；
-cron 保活后 code-server 重启也 ≤5 分钟自动复活，Mac 端纯连接即可。
+```bash
+# 管理员（任何能开 vibe 网页终端的人），跑一次：
+bash /home/q/vibe/projects/zengyuny/claude-desktop-pet/scripts/vibe-shared-setup.sh
+```
+
+之后同事接入只需：Mac 装桌宠（clone → `cd pet && npm install && npm start`）→
+设置「SSH 自动连接」选 **vibe 共享机** → 填自己的用户名 → 保存。
+前提仅一个：他的 Mac 到 vibe 有 SSH 免密（用户名=SSH 账号名）。
+
+为什么共享一个 agent：vibe 所有人的会话本就在同一平台账号下（互相可见是平台现状），
+隔离由服务端按订阅的 `?slug=` 过滤实现——各自的桌宠只看到自己的会话、状态互不串扰；
+而平台侧只需保活这一个进程，新用户永远零开通。会话文件在平台账号家目录（700），
+这也是 agent 必须在 vibe 终端环境起、Mac 端只能纯连接的原因。
 
 以下是手动路径（想自己管 agent 时用）。vibe 是共享机，**hooks 是机器级共享设施**——已经装好、对所有人的会话都在发事件，
 你**不需要重装 hooks，也不要动 settings.json**。你要做的只是：跑一个自己的 agent + 注册进广播列表。

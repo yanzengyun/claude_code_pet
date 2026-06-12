@@ -12,7 +12,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { scanAllSessions, slugMatches, cwdToSlug } = require('./collector.js');
-const { aggregate } = require('./state.js');
+const { aggregate, filterSnapshot } = require('./state.js');
 
 function loadConfig() {
   const def = {
@@ -101,10 +101,20 @@ function tick(force = false) {
 }
 
 function broadcast(snap) {
-  const payload = `data: ${JSON.stringify(snap)}\n\n`;
   for (const res of clients) {
-    try { res.write(payload); } catch { /* drop on next */ }
+    try {
+      const view = res.__slugIncludes ? filterSnapshot(snap, res.__slugIncludes, cwdToSlug) : snap;
+      res.write(`data: ${JSON.stringify(view)}\n\n`);
+    } catch { /* drop on next */ }
   }
+}
+
+/** 解析订阅方的 ?slug= 过滤（逗号分隔），无则 null=全量 */
+function slugParam(url) {
+  const raw = url.searchParams.get('slug');
+  if (!raw) return null;
+  const list = raw.split(',').map((s) => s.trim()).filter(Boolean);
+  return list.length ? list : null;
 }
 
 // ---- HTTP ----
@@ -140,7 +150,7 @@ const server = http.createServer((req, res) => {
 
   if (pathName === '/status') {
     if (!checkToken(url)) return sendJson(res, 401, { error: 'bad token' });
-    return sendJson(res, 200, snapshot);
+    return sendJson(res, 200, filterSnapshot(snapshot, slugParam(url), cwdToSlug));
   }
 
   if (pathName === '/hook' && req.method === 'POST') {
@@ -180,8 +190,9 @@ const server = http.createServer((req, res) => {
       'Access-Control-Allow-Origin': '*',
       'X-Accel-Buffering': 'no', // 关 nginx 缓冲，保证 SSE 实时
     });
+    res.__slugIncludes = slugParam(url); // 共享 agent：每个订阅按自己的 slug 看自己的
     res.write('retry: 3000\n\n');
-    res.write(`data: ${JSON.stringify(snapshot)}\n\n`); // 立即给当前态
+    res.write(`data: ${JSON.stringify(filterSnapshot(snapshot, res.__slugIncludes, cwdToSlug))}\n\n`); // 立即给当前态
     clients.add(res);
     req.on('close', () => clients.delete(res));
     return;
