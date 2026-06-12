@@ -9,6 +9,10 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 cd "$HERE"
 
+# 0) 国内镜像（已设过环境变量则尊重原值）：electron 二进制和 builder 工具都走 GitHub，直连必卡
+export ELECTRON_MIRROR="${ELECTRON_MIRROR:-https://npmmirror.com/mirrors/electron/}"
+export ELECTRON_BUILDER_BINARIES_MIRROR="${ELECTRON_BUILDER_BINARIES_MIRROR:-https://npmmirror.com/mirrors/electron-builder-binaries/}"
+
 # 1) 必须在 macOS（dmg 依赖 mac 专有的 hdiutil/iconutil）
 if [ "$(uname)" != "Darwin" ]; then
   echo "✗ .dmg 只能在 macOS 上构建（依赖 hdiutil/iconutil）。"
