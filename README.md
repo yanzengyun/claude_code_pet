@@ -189,9 +189,19 @@ cd claude-desktop-pet/hooks
 
 ## 六、多人共用与二次开发（同机其他同学看这里）
 
-**最省事的路径**：clone 本仓库到你 Mac → `cd pet && npm install && npm start` →
-设置里启用「SSH 自动连接」，填机器 + 一个没人用的端口（如 477XX）+ 你自己的项目 slug → 保存完事。
-agent 自动部署到远端 `~/.cc-pet-agent`、自动注册进 hook 广播列表，远端不需要 clone 任何代码。
+**vibe 新用户两步接入**（hooks 全机已装，无需任何 settings 改动）：
+
+```bash
+# ① 在你自己的 vibe 网页终端跑一次（专属满血 agent + 广播注册 + cron 保活，全包）：
+bash /home/q/vibe/projects/zengyuny/claude-desktop-pet/scripts/vibe-user-setup.sh <你的vibe用户名>
+
+# ② Mac 上：clone 本仓库 → cd pet && npm install && npm start
+#    设置 →「SSH 自动连接」：填 你的工号@l-picservice4.tj.cn5 + 脚本输出的端口和 slug → 保存
+```
+
+为什么 agent 要在 vibe 终端里起而不是 Mac 远程部署：会话文件在平台账号家目录（700），
+只有 vibe 终端环境（平台账号身份）读得到——在这里跑才是满血版（启发式+标题+Codex）；
+cron 保活后 code-server 重启也 ≤5 分钟自动复活，Mac 端纯连接即可。
 
 以下是手动路径（想自己管 agent 时用）。vibe 是共享机，**hooks 是机器级共享设施**——已经装好、对所有人的会话都在发事件，
 你**不需要重装 hooks，也不要动 settings.json**。你要做的只是：跑一个自己的 agent + 注册进广播列表。
