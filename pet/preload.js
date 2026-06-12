@@ -22,4 +22,6 @@ contextBridge.exposeInMainWorld('petBridge', {
   getConfig: () => ipcRenderer.invoke('pet-config-get'),
   // 面板开合：main 扩/缩窗口，返回面板该在哪一侧 {side:'right'|'left'}
   panelToggle: (open) => ipcRenderer.invoke('pet-panel', open),
+  // 自动连接器阶段推送（offline 气泡显示具体卡在哪）
+  onConnectorStatus: (cb) => ipcRenderer.on('connector-status', (_e, s) => cb(s)),
 });

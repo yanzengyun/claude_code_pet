@@ -40,13 +40,19 @@ const TOOL_LABEL = {
   WebFetch: '查网页', WebSearch: '搜网页',
   Task: '派子任务', Agent: '派子任务', TodoWrite: '整理待办', Skill: '调用技能',
 };
+// 自动连接器阶段（offline 时气泡显示卡在哪一步）
+let connStatus = null;
+const CONN_LABEL = {
+  probing: '探测连接…', tunneling: '隧道连接中…',
+  deploying: '部署 agent…', starting: '启动 agent…', failed: '连接失败',
+};
 function bubbleFor(snap) {
   const top = snap.sessions && snap.sessions[0];
   const proj = top && top.project ? top.project : '';
   switch (snap.pet) {
     case 'waiting': return proj ? `需要你！${proj}` : '需要你！';
     case 'done':    return '完成 ✓';
-    case 'offline': return '离线';
+    case 'offline': return (connStatus && CONN_LABEL[connStatus.phase]) || '离线';
     case 'working': {
       const t = top && top.toolName;
       return t ? `正在${TOOL_LABEL[t] || '用 ' + t}…` : '';
@@ -177,6 +183,18 @@ window.addEventListener('mousemove', (e) => {
 document.addEventListener('mouseleave', () => {
   pupils.forEach((p) => { p.style.transform = ''; });
 });
+
+// 连接器阶段推送：offline 时实时刷新气泡文案
+if (window.petBridge && window.petBridge.onConnectorStatus) {
+  window.petBridge.onConnectorStatus((s) => {
+    connStatus = s;
+    if (pet.getAttribute('data-state') === 'offline') {
+      const text = bubbleFor({ pet: 'offline', sessions: [] });
+      bubbleText.textContent = text;
+      bubble.classList.toggle('show', !!text);
+    }
+  });
+}
 
 // ---------- 5. 连接层（多源 SSE + 聚合） ----------
 const connEl = document.getElementById('connState');

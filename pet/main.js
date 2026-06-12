@@ -5,11 +5,12 @@
  *  • 托盘菜单：显示隐藏 / 登录 vibe / 打开配置 / 退出
  *  • renderer 状态变化 → 系统通知 + 可选提示音（waiting/done）
  */
-const { app, BrowserWindow, Tray, Menu, Notification, ipcMain, screen, shell, nativeImage, utilityProcess } = require('electron');
+const { app, BrowserWindow, Tray, Menu, Notification, ipcMain, screen, shell, nativeImage, utilityProcess, powerMonitor, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const cp = require('child_process');
+const connector = require('./connector.js');
 
 // ---------- 配置 ----------
 const DEFAULT_CFG = {
@@ -17,6 +18,8 @@ const DEFAULT_CFG = {
   sources: null,                 // [{name,url,token,enabled}]；null → 由 primary 生成
   monitor: 'remote',             // 监控目标：'remote'（vibe）| 'local'（本机），二选一
   skin: 'claude',                // 皮肤：'claude'（官方小人）| 'squirtle'（像素小蓝龟）
+  // SSH 自动连接：填机器+端口 → 自动隧道 + 自动部署/拉起远端 agent（需 SSH 免密）
+  remote: { autoConnect: false, sshHost: '', remotePort: 47600, localPort: null, slugIncludes: '' },
   localMonitor: { enabled: false, port: 47601 }, // 内置 agent 监控本机 ~/.claude
   soundOnWaiting: true,
   soundOnDone: false,
@@ -41,7 +44,26 @@ function loadConfig() {
   if (c.monitor !== 'local' && c.monitor !== 'remote') {
     c.monitor = c.localMonitor.enabled ? 'local' : 'remote';
   }
+  c.remote = { ...DEFAULT_CFG.remote, ...(c.remote || {}) };
   return c;
+}
+
+/** 自动连接是否生效（监控远程 + 开了开关 + 填了机器） */
+function autoConnectOn() {
+  return cfg.monitor !== 'local' && !!cfg.remote.autoConnect && !!cfg.remote.sshHost;
+}
+
+/** 给 connector 的配置 */
+function connectorCfg() {
+  const r = cfg.remote;
+  const remotePort = parseInt(r.remotePort, 10) || 47600;
+  return {
+    enabled: autoConnectOn(),
+    sshHost: String(r.sshHost || '').trim(),
+    remotePort,
+    localPort: parseInt(r.localPort, 10) || remotePort,
+    slugIncludes: String(r.slugIncludes || '').split(',').map((s) => s.trim()).filter(Boolean),
+  };
 }
 let cfg = loadConfig();
 
@@ -49,6 +71,11 @@ let cfg = loadConfig();
 function effectiveSources() {
   if (cfg.monitor === 'local') {
     return [{ name: '本机', url: `http://127.0.0.1:${cfg.localMonitor.port || 47601}`, token: '' }];
+  }
+  if (autoConnectOn()) {
+    const c = connectorCfg();
+    const name = (c.sshHost.split('@').pop() || 'remote').split('.')[0];
+    return [{ name, url: `http://127.0.0.1:${c.localPort}`, token: '' }];
   }
   return cfg.sources.filter((s) => s.enabled !== false && s.url);
 }
@@ -149,9 +176,30 @@ function trayIcon() {
   // 兜底：1x1 占位，避免崩
   return nativeImage.createEmpty();
 }
+const CONN_PHASE_LABEL = {
+  disabled: '', probing: '探测中…', tunneling: 'SSH 隧道连接中…',
+  deploying: '部署远端 agent…', starting: '启动远端 agent…',
+  connected: '✓ 已连接', failed: '✗ 连接失败',
+};
+let connPhase = 'disabled', connDetail = '';
+
 function makeMenu() {
   const srcLines = effectiveSources().map((s) => ({ label: `源：${s.name} (${s.url})`, enabled: false }));
   if (!srcLines.length) srcLines.push({ label: '源：（未配置）', enabled: false });
+  if (autoConnectOn()) {
+    srcLines.push({ label: `自动连接：${CONN_PHASE_LABEL[connPhase] || connPhase}${connDetail ? ' · ' + connDetail.slice(0, 40) : ''}`, enabled: false });
+    srcLines.push({ label: '立即重连', click: () => connector.poke() });
+    srcLines.push({
+      label: '停止远端 agent',
+      click: async () => {
+        const { response } = await dialog.showMessageBox({
+          type: 'question', buttons: ['取消', '停止'], defaultId: 0, cancelId: 0,
+          message: '停止远端 agent？', detail: '桌宠将离线；下次连接时会自动重新拉起。',
+        });
+        if (response === 1) { const r = await connector.agentStop(); notify('Claude Pet', r.ok ? '远端 agent 已停止' : `停止失败：${r.msg}`, true); }
+      },
+    });
+  }
   return Menu.buildFromTemplate([
     { label: '显示 / 隐藏', click: () => { if (win.isVisible()) win.hide(); else win.show(); } },
     { type: 'separator' },
@@ -177,10 +225,11 @@ function buildTray() {
   tray.on('click', () => { if (win) (win.isVisible() ? win.focus() : win.show()); });
 }
 
-/** 重读配置并整体生效：本地 agent、托盘菜单、桌宠窗口 */
+/** 重读配置并整体生效：本地 agent、自动连接器、托盘菜单、桌宠窗口 */
 function applyConfig() {
   cfg = loadConfig();
   startLocalAgent();
+  connector.configure(connectorCfg());
   if (tray) tray.setContextMenu(makeMenu());
   if (win) win.reload();
 }
@@ -189,7 +238,7 @@ function applyConfig() {
 function openSettings() {
   if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.focus(); return; }
   settingsWin = new BrowserWindow({
-    width: 440, height: 730, title: 'Claude Pet 设置',
+    width: 460, height: 900, title: 'Claude Pet 设置',
     resizable: false, minimizable: false, maximizable: false, fullscreenable: false,
     webPreferences: {
       preload: path.join(__dirname, 'settings-preload.js'),
@@ -213,6 +262,13 @@ ipcMain.handle('settings-save', (_e, next) => {
     })),
     monitor: next.monitor === 'local' ? 'local' : 'remote',
     skin: next.skin === 'squirtle' ? 'squirtle' : 'claude',
+    remote: {
+      autoConnect: !!(next.remote && next.remote.autoConnect),
+      sshHost: String((next.remote && next.remote.sshHost) || '').trim(),
+      remotePort: parseInt(next.remote && next.remote.remotePort, 10) || 47600,
+      localPort: parseInt(next.remote && next.remote.localPort, 10) || null,
+      slugIncludes: String((next.remote && next.remote.slugIncludes) || '').trim(),
+    },
     localMonitor: {
       enabled: next.monitor === 'local',
       port: parseInt(next.localMonitor && next.localMonitor.port, 10) || 47601,
@@ -229,6 +285,11 @@ ipcMain.handle('settings-save', (_e, next) => {
   return { ok: true };
 });
 ipcMain.handle('pet-config-get', () => ({ ...cfg, sources: effectiveSources() }));
+
+// ---------- hooks 管理（检测只读；安装/卸载由设置窗口确认后调用） ----------
+ipcMain.handle('hooks-status', () => connector.hooksStatus());
+ipcMain.handle('hooks-install', () => connector.hooksInstall());
+ipcMain.handle('hooks-uninstall', () => connector.hooksUninstall());
 
 // ---------- 面板开合：窗口向小人旁边扩展（默认右侧，贴屏幕边时换左侧） ----------
 const PANEL_W = 240, PANEL_H_EXTRA = 110;
@@ -294,6 +355,7 @@ function notify(title, body, silent) {
 }
 ipcMain.on('pet-state', (_e, s) => {
   const pet = s && s.pet;
+  if (pet === 'offline') connector.poke(); // SSE 掉线 → 触发自动重连
   if (!pet || pet === lastPet) { lastPet = pet; return; }
   const prev = lastPet; lastPet = pet;
   if (pet === 'waiting') {
@@ -315,9 +377,18 @@ ipcMain.on('pet-move-by', (_e, d) => {
 app.whenReady().then(() => {
   if (process.platform === 'darwin' && app.dock) app.dock.hide(); // 不在 Dock 显示
   startLocalAgent();
+  connector.init({
+    onPhase: (p, detail) => {
+      connPhase = p; connDetail = detail || '';
+      if (tray) tray.setContextMenu(makeMenu());
+      if (win && !win.isDestroyed()) win.webContents.send('connector-status', { phase: p, detail: connDetail });
+    },
+  });
+  connector.configure(connectorCfg());
+  powerMonitor.on('resume', () => connector.poke()); // 睡眠唤醒 → 立即重连
   createWindow();
   buildTray();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 app.on('window-all-closed', (e) => { e.preventDefault(); }); // 托盘常驻，不随窗口关闭退出
-app.on('will-quit', stopLocalAgent);
+app.on('will-quit', () => { stopLocalAgent(); connector.shutdown(); }); // 隧道随退出回收；远端 agent 保持常驻

@@ -89,7 +89,33 @@ bash build-dmg.sh          # 同时出 arm64 + x64；或 build-dmg.sh arm / inte
 
 ---
 
-## 三、让 Mac 的桌宠连上 vibe 的 agent（二选一）
+## 三、让 Mac 的桌宠连上 vibe 的 agent
+
+### 方式 0 · SSH 自动连接（推荐，零手工）⭐
+
+前提只有一个：**Mac 到目标机器已配 SSH 免密**（`ssh 机器` 不要密码就行），远端有 node 即可，
+**不需要远端先放代码、也不需要手动起 agent / 开隧道**。
+
+托盘 **「设置…」→「SSH 自动连接」**：
+
+1. 勾选启用，填 **SSH 机器**（如 `zengyuny@l-picservice4.tj.cn5`，支持 `~/.ssh/config` 别名）
+2. 填 **远端端口**（默认 47600）和 **项目过滤** slug（共享机务必填，如 `-home-q-vibe-projects-zengyuny`）
+3. 保存 —— 之后全自动：
+
+```
+打开桌宠 → 自动开 SSH 隧道 → 远端没 agent？自动部署到 ~/.cc-pet-agent 并拉起
+         → 掉线/Mac 睡眠唤醒 → 自动重连（指数退避）
+         → 离线时气泡直接显示卡在哪步（隧道中/部署中/启动中/失败原因）
+```
+
+托盘还有「立即重连」「停止远端 agent」手动兜底。退出桌宠只回收隧道，远端 agent 保持常驻（秒重连）。
+安全边界：`BatchMode` 只用已有免密、**绝不提示或存储密码**；远端只执行固定的部署/启停命令。
+
+> 账号注意：自动部署的 agent 以 **SSH 登录账号**身份运行，读取的是该账号的 `~/.claude`。
+> 如果你的 Claude Code 跑在另一个账号下（比如 vibe 网页终端），让那个账号的 agent 照常驻着——
+> 端口上已有健康 agent 时自动连接会**直接复用、绝不动它**，部署只在端口空着时才发生。
+
+### 手动方式（无免密/特殊场景的备选）
 
 vibe 的 agent 监听在服务器的 `127.0.0.1:47600`，Mac 要连过去，两种方式：
 
@@ -124,7 +150,11 @@ vibe 用 `https://vibe.corp.tujia.com/zengyuny/proxy/47600/` 暴露端口，但�
 不装也能用（靠读会话文件+进程判断 working/idle/done）；装了能精确捕捉
 `Notification`(等权限/等输入) / `Stop`(完成) / `UserPromptSubmit`(开工) 等时刻。
 
-在 **agent 所在的机器**（vibe）上：
+**用了「SSH 自动连接」的话不用登机器**：设置窗口里「精确钩子」一栏会自动检测远端状态
+（未安装/基础版/完整版），点「安装/升级/卸载」按钮、确认弹窗后客户端替你远程执行脚本
+（同样自动备份、只增不改）。
+
+手动方式：在 **agent 所在的机器**（vibe）上：
 ```bash
 cd claude-desktop-pet/hooks
 ./install-hooks.sh                       # 先预览：只打印会加什么 + 生成 *.cc-pet-preview，不动你的 settings.json
@@ -155,7 +185,11 @@ cd claude-desktop-pet/hooks
 
 ## 六、多人共用与二次开发（同机其他同学看这里）
 
-vibe 是共享机，**hooks 是机器级共享设施**——已经装好、对所有人的会话都在发事件，
+**最省事的路径**：clone 本仓库到你 Mac → `cd pet && npm install && npm start` →
+设置里启用「SSH 自动连接」，填机器 + 一个没人用的端口（如 477XX）+ 你自己的项目 slug → 保存完事。
+agent 自动部署到远端 `~/.cc-pet-agent`、自动注册进 hook 广播列表，远端不需要 clone 任何代码。
+
+以下是手动路径（想自己管 agent 时用）。vibe 是共享机，**hooks 是机器级共享设施**——已经装好、对所有人的会话都在发事件，
 你**不需要重装 hooks，也不要动 settings.json**。你要做的只是：跑一个自己的 agent + 注册进广播列表。
 
 ```bash

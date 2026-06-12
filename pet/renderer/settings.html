@@ -39,6 +39,9 @@
   }
   button.primary { background: var(--coral); border-color: var(--coral); color: #fff; font-weight: 600; }
   button.primary:hover { background: var(--coral-deep); }
+  .row button { padding: 4px 12px; font-size: 12px; flex: 0 0 auto; }
+  .row button:disabled { opacity: 0.5; cursor: default; }
+  #hooksState { font-size: 12px; color: #6b6453; }
   #saved { color: var(--coral-deep); font-size: 12px; align-self: center; margin-right: auto; opacity: 0; transition: opacity .3s; }
   #saved.show { opacity: 1; }
 </style>
@@ -59,12 +62,28 @@
   </fieldset>
 
   <fieldset>
-    <legend>远程源（vibe 服务器）</legend>
+    <legend>SSH 自动连接（推荐，需已配免密）</legend>
+    <label class="check"><input type="checkbox" id="rcEnabled"> 启用：自动隧道 + 自动部署/拉起远端 agent</label>
+    <div class="row"><label>SSH 机器</label><input type="text" id="rcHost" placeholder="zengyuny@l-picservice4.tj.cn5 或 ~/.ssh/config 别名"></div>
+    <div class="row"><label>远端端口</label><input type="number" id="rcPort" placeholder="47600"></div>
+    <div class="row"><label>项目过滤</label><input type="text" id="rcSlugs" placeholder="-home-q-vibe-projects-zengyuny（共享机务必填，逗号分隔，空=全部）"></div>
+    <p class="hint">远端机器只需有 node 和 SSH 免密——agent 会自动部署到 ~/.cc-pet-agent，掉线/睡眠唤醒自动重连。</p>
+    <div class="row" style="margin-top:8px"><label>精确钩子</label>
+      <span id="hooksState" style="flex:1">未检测</span>
+      <button id="hooksCheck" type="button">检测</button>
+      <button id="hooksInstall" type="button">安装</button>
+      <button id="hooksUninstall" type="button" hidden>卸载</button>
+    </div>
+    <p class="hint">安装钩子会修改远端 ~/.claude/settings.json（自动备份、只增不改），需要你确认；装完对新会话生效。</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>远程源（手动模式，自动连接关闭时生效）</legend>
     <div class="row"><label>名称</label><input type="text" id="srcName" placeholder="vibe"></div>
     <div class="row"><label>地址</label><input type="text" id="srcUrl" placeholder="http://127.0.0.1:47600"></div>
     <div class="row"><label>Token</label><input type="text" id="srcToken" placeholder="（无则留空）"></div>
     <div class="row"><label>SSO 站点</label><input type="text" id="ssoOrigin" placeholder="https://vibe.corp.tujia.com（仅代理模式）"></div>
-    <p class="hint">SSH 隧道模式填 http://127.0.0.1:47600，SSO 站点留空；代理模式填 proxy 地址 + SSO 站点。</p>
+    <p class="hint">手动 SSH 隧道填 http://127.0.0.1:47600，SSO 站点留空；公司代理模式填 proxy 地址 + SSO 站点。</p>
   </fieldset>
 
   <fieldset>
