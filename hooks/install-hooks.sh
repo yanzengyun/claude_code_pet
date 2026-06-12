@@ -28,9 +28,10 @@ done
 chmod +x "$SCRIPT" 2>/dev/null || true
 
 if [ ! -f "$SETTINGS" ]; then
-  echo "✗ 找不到 settings.json：$SETTINGS"
-  echo "  用 SETTINGS=/your/path ./install-hooks.sh 指定。"
-  exit 1
+  # Claude Code 只在需要时才创建 settings.json；不存在就先建个空配置再追加，零风险
+  mkdir -p "$(dirname "$SETTINGS")"
+  printf '{}\n' > "$SETTINGS"
+  echo "ℹ settings.json 不存在，已创建空配置：$SETTINGS"
 fi
 
 EVENTS="UserPromptSubmit Notification Stop SessionStart SessionEnd SubagentStop"
