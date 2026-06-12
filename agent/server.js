@@ -78,17 +78,16 @@ function sig(snap) {
 }
 let lastSig = '';
 
-function tick(force = false) {
+// 全量扫描结果缓存：hook 事件触发的快速重聚合直接复用，绝不为每个事件扫文件。
+// （共享 agent 看全机时，hook 事件频率 × 全机扫描成本曾把事件循环卡死 → accept 积压）
+let lastSessions = [];
+
+/** 重聚合 + 推送（轻量，仅内存计算） */
+function refresh(force = false) {
   const now = Date.now();
   pruneHooks(now);
-  const sessions = scanAllSessions({
-    claudeHome: cfg.claudeHome, providers: cfg.providers, slugIncludes: cfg.slugIncludes,
-    now, cpuCache, lastScanTs,
-    activeMs: cfg.activeMs, graceMs: cfg.graceMs, recentDoneMs: cfg.recentDoneMs,
-  });
-  lastScanTs = now;
   const agg = aggregate({
-    sessions, hookState, prev: prevAgg, now,
+    sessions: lastSessions, hookState, prev: prevAgg, now,
     opts: { hookTtlMs: cfg.hookTtlMs, doneWindowMs: cfg.doneWindowMs },
   });
   prevAgg = agg.prev;
@@ -98,6 +97,18 @@ function tick(force = false) {
     lastSig = s;
     broadcast(snapshot);
   }
+}
+
+/** 全量扫描（重，只按定时器节奏跑） */
+function tick(force = false) {
+  const now = Date.now();
+  lastSessions = scanAllSessions({
+    claudeHome: cfg.claudeHome, providers: cfg.providers, slugIncludes: cfg.slugIncludes,
+    now, cpuCache, lastScanTs,
+    activeMs: cfg.activeMs, graceMs: cfg.graceMs, recentDoneMs: cfg.recentDoneMs,
+  });
+  lastScanTs = now;
+  refresh(force);
 }
 
 function broadcast(snap) {
@@ -174,7 +185,7 @@ const server = http.createServer((req, res) => {
           toolName: d.toolName || d.tool_name || null,
         };
         lastHookAt = Date.now(); // 供客户端判断「hooks 实际已生效」（可能由别的账号安装）
-        tick(true); // 立即反映
+        refresh(true); // 立即反映：仅重聚合（复用扫描缓存），hook 高频时绝不触发全机扫描
       }
       sendJson(res, 200, { ok: true });
     });
