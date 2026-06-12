@@ -42,6 +42,8 @@
   .row button { padding: 4px 12px; font-size: 12px; flex: 0 0 auto; }
   .row button:disabled { opacity: 0.5; cursor: default; }
   #hooksState { font-size: 12px; color: #6b6453; }
+  fieldset.dim { opacity: 0.45; }
+  fieldset.dim legend { opacity: 1; }  /* 选择项始终清晰可点 */
   #saved { color: var(--coral-deep); font-size: 12px; align-self: center; margin-right: auto; opacity: 0; transition: opacity .3s; }
   #saved.show { opacity: 1; }
 </style>
@@ -61,33 +63,26 @@
     <label class="check"><input type="radio" name="skin" id="skinSquirtle"> 像素小蓝龟 🐢</label>
   </fieldset>
 
-  <fieldset>
-    <legend>SSH 自动连接（推荐，需已配免密）</legend>
-    <label class="check"><input type="checkbox" id="rcEnabled"> 启用：自动隧道 + 自动连接（掉线/睡眠唤醒自愈）</label>
-    <label class="check"><input type="radio" name="rcMode" id="rcModeVibe"> vibe 共享机（只填用户名，连共享 agent）</label>
-    <div class="row" id="rowVibeUser"><label>vibe 用户名</label><input type="text" id="rcVibeUser" placeholder="如 zengyuny（SSH 账号=用户名）"></div>
-    <label class="check"><input type="radio" name="rcMode" id="rcModeStd"> 标准机器（Claude 在 SSH 账号家目录，可自动部署 agent）</label>
-    <div class="row rowStd"><label>SSH 机器</label><input type="text" id="rcHost" placeholder="user@host 或 ~/.ssh/config 别名"></div>
-    <div class="row rowStd"><label>远端端口</label><input type="number" id="rcPort" placeholder="47600"></div>
-    <div class="row rowStd"><label>项目过滤</label><input type="text" id="rcSlugs" placeholder="逗号分隔，空=全部（共享机务必填）"></div>
-    <p class="hint">vibe 模式：前提仅 SSH 免密，agent 由平台侧统一保活。标准模式：远端有 node 即可，agent
-      自动部署到 ~/.cc-pet-agent 并拉起。</p>
+  <fieldset id="fsVibe">
+    <legend><label class="check" style="margin:0"><input type="radio" name="rcMode" id="rcModeVibe"> vibe 共享机（推荐）</label></legend>
+    <div class="row"><label>vibe 用户名</label><input type="text" id="rcVibeUser" placeholder="如 zengyuny（SSH 账号=用户名）"></div>
+    <p class="hint">只需这一项。前提：Mac 到 vibe 已配 SSH 免密。agent / hooks 平台侧已统一配置，
+      自动隧道、掉线/睡眠唤醒自愈，全程零操作。</p>
+  </fieldset>
+
+  <fieldset id="fsStd">
+    <legend><label class="check" style="margin:0"><input type="radio" name="rcMode" id="rcModeStd"> 标准 SSH 机器</label></legend>
+    <div class="row"><label>SSH 机器</label><input type="text" id="rcHost" placeholder="user@host 或 ~/.ssh/config 别名"></div>
+    <div class="row"><label>远端端口</label><input type="number" id="rcPort" placeholder="47600"></div>
+    <div class="row"><label>项目过滤</label><input type="text" id="rcSlugs" placeholder="逗号分隔，空=全部（共享机务必填）"></div>
     <div class="row" style="margin-top:8px"><label>精确钩子</label>
       <span id="hooksState" style="flex:1">未检测</span>
       <button id="hooksCheck" type="button">检测</button>
       <button id="hooksInstall" type="button">安装</button>
       <button id="hooksUninstall" type="button" hidden>卸载</button>
     </div>
-    <p class="hint">安装钩子会修改远端 ~/.claude/settings.json（自动备份、只增不改），需要你确认；装完对新会话生效。</p>
-  </fieldset>
-
-  <fieldset>
-    <legend>远程源（手动模式，自动连接关闭时生效）</legend>
-    <div class="row"><label>名称</label><input type="text" id="srcName" placeholder="vibe"></div>
-    <div class="row"><label>地址</label><input type="text" id="srcUrl" placeholder="http://127.0.0.1:47600"></div>
-    <div class="row"><label>Token</label><input type="text" id="srcToken" placeholder="（无则留空）"></div>
-    <div class="row"><label>SSO 站点</label><input type="text" id="ssoOrigin" placeholder="https://vibe.corp.tujia.com（仅代理模式）"></div>
-    <p class="hint">手动 SSH 隧道填 http://127.0.0.1:47600，SSO 站点留空；公司代理模式填 proxy 地址 + SSO 站点。</p>
+    <p class="hint">适用于 Claude 跑在 SSH 账号家目录的机器（远端有 node 即可）：agent 自动部署到
+      ~/.cc-pet-agent 并拉起。安装钩子会改远端 ~/.claude/settings.json（自动备份、需确认）。</p>
   </fieldset>
 
   <fieldset>

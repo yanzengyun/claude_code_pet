@@ -256,7 +256,7 @@ function applyConfig() {
 function openSettings() {
   if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.focus(); return; }
   settingsWin = new BrowserWindow({
-    width: 460, height: 950, title: 'Claude Pet 设置',
+    width: 460, height: 870, title: 'Claude Pet 设置',
     resizable: false, minimizable: false, maximizable: false, fullscreenable: false,
     webPreferences: {
       preload: path.join(__dirname, 'settings-preload.js'),

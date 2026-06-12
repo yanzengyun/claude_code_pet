@@ -7,13 +7,11 @@ let cfg = null;
 
 async function load() {
   cfg = await window.settingsBridge.get();
-  const src = (cfg.sources && cfg.sources[0]) || { name: 'vibe', url: '', token: '', enabled: true };
   $('monRemote').checked = cfg.monitor !== 'local';
   $('monLocal').checked = cfg.monitor === 'local';
   $('skinClaude').checked = cfg.skin !== 'squirtle';
   $('skinSquirtle').checked = cfg.skin === 'squirtle';
   const rc = cfg.remote || {};
-  $('rcEnabled').checked = !!rc.autoConnect;
   $('rcModeVibe').checked = rc.mode === 'vibe';
   $('rcModeStd').checked = rc.mode !== 'vibe';
   $('rcVibeUser').value = rc.vibeUser || '';
@@ -21,11 +19,7 @@ async function load() {
   $('rcPort').value = rc.remotePort || 47600;
   $('rcSlugs').value = rc.slugIncludes || '';
   toggleRcMode();
-  if (rc.autoConnect && (rc.sshHost || rc.vibeUser)) checkHooks(); // 打开设置时自动检测（只读）
-  $('srcName').value = src.name || 'vibe';
-  $('srcUrl').value = src.url || '';
-  $('srcToken').value = src.token || '';
-  $('ssoOrigin').value = cfg.ssoOrigin || '';
+  if (rc.sshHost || rc.vibeUser) checkHooks(); // 打开设置时自动检测（只读）
   $('localPort').value = (cfg.localMonitor && cfg.localMonitor.port) || 47601;
   $('notifyOnWaiting').checked = !!cfg.notifyOnWaiting;
   $('soundOnWaiting').checked = !!cfg.soundOnWaiting;
@@ -38,19 +32,16 @@ async function save() {
     monitor: $('monLocal').checked ? 'local' : 'remote',
     skin: $('skinSquirtle').checked ? 'squirtle' : 'claude',
     remote: {
-      autoConnect: $('rcEnabled').checked,
+      autoConnect: true, // 界面只保留自动连接；手动/代理模式可直接改 ~/.cc-pet/config.json
       mode: $('rcModeVibe').checked ? 'vibe' : 'standard',
       vibeUser: $('rcVibeUser').value.trim(),
       sshHost: $('rcHost').value.trim(),
       remotePort: parseInt($('rcPort').value, 10) || 47600,
       slugIncludes: $('rcSlugs').value.trim(),
     },
-    sources: [{
-      name: $('srcName').value.trim() || 'vibe',
-      url: $('srcUrl').value.trim(),
-      token: $('srcToken').value.trim(),
-      enabled: true,
-    }],
+    // 手动源/SSO 已不在界面暴露：原样透传，配置文件里配过的保持不变
+    sources: cfg.sources || [],
+    ssoOrigin: cfg.ssoOrigin || '',
     localMonitor: {
       port: parseInt($('localPort').value, 10) || 47601,
     },
@@ -58,7 +49,6 @@ async function save() {
     soundOnWaiting: $('soundOnWaiting').checked,
     notifyOnDone: $('notifyOnDone').checked,
     soundOnDone: $('soundOnDone').checked,
-    ssoOrigin: $('ssoOrigin').value.trim(),
   };
   await window.settingsBridge.save(next);
   const saved = $('saved');
@@ -137,11 +127,14 @@ $('lhUninstall').addEventListener('click', () => runLocalHooks('uninstall',
   '将从本机 ~/.claude/settings.json 移除 cc-pet 钩子（自动备份）。继续？'));
 checkLocalHooks(); // 本机检测零成本，打开设置即显示
 
-// 连接方式切换：vibe 只显示用户名，标准显示机器/端口/过滤
+// 连接方式切换：未选中的区块整体变暗、输入禁用（始终可点 legend 切回）
 function toggleRcMode() {
   const vibe = $('rcModeVibe').checked;
-  document.getElementById('rowVibeUser').style.display = vibe ? '' : 'none';
-  document.querySelectorAll('.rowStd').forEach((el) => { el.style.display = vibe ? 'none' : ''; });
+  for (const [id, on] of [['fsVibe', vibe], ['fsStd', !vibe]]) {
+    const fs = document.getElementById(id);
+    fs.classList.toggle('dim', !on);
+    fs.querySelectorAll('input:not([type=radio]), button').forEach((el) => { el.disabled = !on; });
+  }
 }
 $('rcModeVibe').addEventListener('change', toggleRcMode);
 $('rcModeStd').addEventListener('change', toggleRcMode);
