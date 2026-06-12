@@ -75,8 +75,11 @@ function applySnapshot(snap) {
   if (!snap || !snap.pet) return;
   pet.setAttribute('data-state', snap.pet);
   const text = bubbleFor(snap);
-  bubbleText.textContent = text;
-  bubble.classList.toggle('show', !!text); // working 等仅在有文案时显示气泡
+  // idle 且无正经文案时，别打断正在显示的闲聊气泡（心跳推送会频繁触发本函数）
+  if (!(snap.pet === 'idle' && !text && Date.now() < chatUntil)) {
+    bubbleText.textContent = text;
+    bubble.classList.toggle('show', !!text); // working 等仅在有文案时显示气泡
+  }
 
   // 通知 Electron 主进程（用于系统通知/提示音/托盘）
   if (window.petBridge && snap.pet !== lastPet) {
@@ -183,6 +186,47 @@ window.addEventListener('mousemove', (e) => {
 document.addEventListener('mouseleave', () => {
   pupils.forEach((p) => { p.style.transform = ''; });
 });
+
+// ---------- 闲聊气泡（仅 idle 时随机冒一句，纯视觉，不碰状态机） ----------
+let chatUntil = 0;
+const CHAT_LINES = {
+  any: [
+    '我在呢 ✦', '喝口水吧 💧', '站起来伸个懒腰？', '摸摸我试试 👀',
+    '有任务随时叫我～', '发呆中…', '陪你上班的第 N 天', '拖我玩儿啊',
+    '点我看会话列表', '休息一下眼睛吧', '保持水分，保持优雅', '嗯哼～',
+  ],
+  morning: ['早上好 ☀️', '今天也要加油呀', '先来杯咖啡？'],
+  noon: ['午饭吃了吗？', '小憩一会儿也不错'],
+  night: ['晚上好 🌙', '别忘了下班呀', '今天辛苦啦'],
+  late: ['夜深了，早点休息 😴', '熬夜伤身，我先眯一会儿', '凌晨写码，注意身体'],
+};
+function pickChat() {
+  const h = new Date().getHours();
+  const pool = [...CHAT_LINES.any];
+  if (h >= 6 && h < 11) pool.push(...CHAT_LINES.morning);
+  else if (h >= 11 && h < 14) pool.push(...CHAT_LINES.noon);
+  else if (h >= 18 && h < 23) pool.push(...CHAT_LINES.night);
+  else if (h >= 23 || h < 6) pool.push(...CHAT_LINES.late);
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+function scheduleChat() {
+  setTimeout(() => {
+    if (pet.getAttribute('data-state') === 'idle' && !panelOpen) {
+      bubbleText.textContent = pickChat();
+      bubble.classList.add('show');
+      chatUntil = Date.now() + 6000;
+      setTimeout(() => {
+        // 6 秒后若没被正经状态接管，收起
+        if (Date.now() >= chatUntil && pet.getAttribute('data-state') === 'idle') {
+          bubble.classList.remove('show');
+          bubbleText.textContent = '';
+        }
+      }, 6200);
+    }
+    scheduleChat();
+  }, 45000 + Math.random() * 90000); // 45s ~ 2min15s 随机
+}
+scheduleChat();
 
 // 连接器阶段推送：offline 时实时刷新气泡文案
 if (window.petBridge && window.petBridge.onConnectorStatus) {
