@@ -140,4 +140,38 @@ t('recentCodexSessionFiles prunes date dirs older than lookback', () => {
   assert.strictEqual(files.length, 0);
 });
 
+t('codex task_started 后文件暂停写仍判 working（修复长任务误显示完成）', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cc-pet-codex-'));
+  const sid = '019ecf19-fe84-7ea1-beab-357e66aafa39';
+  const file = path.join(root, 'sessions', '2026', '06', '16', `rollout-${sid}.jsonl`);
+  writeJsonl(file, [
+    { timestamp: '2026-06-16T06:00:00.000Z', type: 'session_meta', payload: { id: sid, cwd: '/home/q/vibe/projects/zengyuny' } },
+    { timestamp: '2026-06-16T06:00:10.000Z', type: 'event_msg', payload: { type: 'task_started' } },
+    { timestamp: '2026-06-16T06:00:12.000Z', type: 'response_item', payload: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: '还在跑' }] } },
+  ]);
+  // 文件 40s 没写（长工具调用中），末条是 assistant —— 旧逻辑会误判 idle→done
+  const mtime = new Date('2026-06-16T06:00:12.000Z');
+  fs.utimesSync(file, mtime, mtime);
+  const now = Date.parse('2026-06-16T06:00:52.000Z');
+  const sessions = scanCodexSessions({ codexHome: root, now, recentDoneMs: 10 * 60 * 1000, activeMs: 4000, execFn: () => '' });
+  assert.strictEqual(sessions.length, 1);
+  assert.strictEqual(sessions[0].state, 'working');
+});
+
+t('codex task_complete 后判 idle', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cc-pet-codex-'));
+  const sid = '019ecf19-fe84-7ea1-beab-357e66aafa40';
+  const file = path.join(root, 'sessions', '2026', '06', '16', `rollout-${sid}.jsonl`);
+  writeJsonl(file, [
+    { timestamp: '2026-06-16T06:00:00.000Z', type: 'session_meta', payload: { id: sid, cwd: '/home/q/vibe/projects/zengyuny' } },
+    { timestamp: '2026-06-16T06:00:10.000Z', type: 'event_msg', payload: { type: 'task_started' } },
+    { timestamp: '2026-06-16T06:00:20.000Z', type: 'event_msg', payload: { type: 'task_complete' } },
+  ]);
+  const mtime = new Date('2026-06-16T06:00:20.000Z');
+  fs.utimesSync(file, mtime, mtime);
+  const now = Date.parse('2026-06-16T06:00:52.000Z');
+  const sessions = scanCodexSessions({ codexHome: root, now, recentDoneMs: 10 * 60 * 1000, activeMs: 4000, execFn: () => '' });
+  assert.strictEqual(sessions[0].state, 'idle');
+});
+
 console.log(`\n${pass} assertions passed.`);

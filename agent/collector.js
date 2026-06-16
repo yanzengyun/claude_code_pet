@@ -100,6 +100,21 @@ function lastCodexContentEvent(jsonlPath) {
   return null;
 }
 
+/** Codex 任务生命周期：尾部最近一条 task_started / task_complete（它版的"开工/完成"权威信号）。
+ *  返回 { event, ts } 或 null。task_started 晚于 task_complete = 任务进行中。 */
+function lastCodexLifecycle(tail) {
+  const lines = tail.split('\n');
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i];
+    if (!line || line.indexOf('task_started') === -1 && line.indexOf('task_complete') === -1) continue;
+    let d;
+    try { d = JSON.parse(line.trim()); } catch { continue; }
+    const pt = d.payload && d.payload.type;
+    if (pt === 'task_started' || pt === 'task_complete') return { event: pt, ts: codexEventTime(d) };
+  }
+  return null;
+}
+
 // session_meta 在文件头、写入后不变 → 按路径永久缓存，避免每拍重读 128KB
 const codexMetaCache = new Map(); // path → payload
 function codexSessionMeta(jsonlPath) {
@@ -562,19 +577,29 @@ function scanCodexSessions(opts = {}) {
     if (!cur || f.mtimeMs > cur.mtimeMs) freshestByCwd.set(cwd, f);
   }
 
+  // task_started 后即便文件短暂没写也算 working，但 mtime 太久没动则认定进程已死，回落 idle
+  const taskActiveMs = opts.codexTaskActiveMs ?? 180000; // 3min
   const sessions = [];
   for (const f of files) {
     const meta = f.meta || codexSessionMeta(f.path) || {};
+    const tail = readTail(f.path);
     const ev = lastCodexContentEvent(f.path);
+    const life = lastCodexLifecycle(tail || '');
     const cwd = meta.cwd || null;
     const proc = (cwd && freshestByCwd.get(cwd) === f) ? procByCwd.get(cwd) : null;
     const cpuActive = !!(proc && proc.cpuActive);
     const jsonlFresh = f.mtimeMs != null && (now - f.mtimeMs) <= activeMs;
+    const mtimeAge = f.mtimeMs != null ? now - f.mtimeMs : Infinity;
     const lastRole = ev ? ev.role : null;
     const lastTs = ev ? ev.ts : (f.mtimeMs || null);
+    const taskRunning = life && life.event === 'task_started'; // 未见后续 task_complete
     let state;
     if (cpuActive || jsonlFresh) {
       state = 'working';
+    } else if (taskRunning && mtimeAge <= taskActiveMs) {
+      state = 'working'; // 长任务中段（工具久跑/推理），文件暂停写但任务在跑
+    } else if (life && life.event === 'task_complete') {
+      state = 'idle';    // 权威完成信号
     } else if (lastRole === 'assistant') {
       state = 'idle';
     } else if (lastRole === 'user') {
@@ -634,6 +659,7 @@ module.exports = {
   scanCodexProcesses,
   lastContentEvent,
   lastCodexContentEvent,
+  lastCodexLifecycle,
   findSessionFile,
   recentSessionFiles,
   recentCodexSessionFiles,
