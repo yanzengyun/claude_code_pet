@@ -440,6 +440,17 @@ ipcMain.on('pet-move-by', (_e, d) => {
   const [x, y] = win.getPosition();
   win.setPosition(x + (d.dx | 0), y + (d.dy | 0));
 });
+// 右键小人弹出菜单 —— 托盘图标被 macOS 菜单栏吞掉时的可靠入口
+ipcMain.on('pet-context-menu', () => {
+  Menu.buildFromTemplate([
+    { label: '设置…', click: openSettings },
+    { label: '立即重连', click: () => connector.poke(), visible: autoConnectOn() },
+    { label: '打开配置文件', click: openConfig },
+    { label: '重新加载', click: applyConfig },
+    { type: 'separator' },
+    { label: '退出', click: () => app.quit() },
+  ]).popup({ window: win });
+});
 
 // ---------- 生命周期 ----------
 app.whenReady().then(() => {

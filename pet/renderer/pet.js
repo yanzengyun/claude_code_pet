@@ -174,6 +174,12 @@ pet.addEventListener('mousedown', (e) => {
 panel.addEventListener('mousedown', (e) => { e.stopPropagation(); });
 document.getElementById('panelClose').addEventListener('click', () => setPanel(false));
 
+// 右键小人 → 原生菜单（设置/重连/退出）：托盘图标被 macOS 菜单栏吞掉时的可靠入口
+document.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  if (window.petBridge && window.petBridge.showContextMenu) window.petBridge.showContextMenu();
+});
+
 // 眼珠跟随鼠标（悬停在窗口内时）
 const pupils = document.querySelectorAll('.pupil');
 window.addEventListener('mousemove', (e) => {

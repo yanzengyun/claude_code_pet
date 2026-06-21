@@ -24,4 +24,6 @@ contextBridge.exposeInMainWorld('petBridge', {
   panelToggle: (open) => ipcRenderer.invoke('pet-panel', open),
   // 自动连接器阶段推送（offline 气泡显示具体卡在哪）
   onConnectorStatus: (cb) => ipcRenderer.on('connector-status', (_e, s) => cb(s)),
+  // 右键小人弹原生菜单（托盘被系统菜单栏吞掉时的入口）
+  showContextMenu: () => ipcRenderer.send('pet-context-menu'),
 });
