@@ -185,14 +185,32 @@ function createWindow() {
 }
 
 // ---------- 托盘 ----------
+// 兜底图标：程序生成一个 18px 实心圆点（绝不返回空图——空图在 macOS 上=托盘不可见）
+function fallbackTrayIcon() {
+  const s = 18, buf = Buffer.alloc(s * s * 4);
+  const cx = (s - 1) / 2, r = s / 2 - 1;
+  for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
+    const i = (y * s + x) * 4;
+    const inside = (x - cx) ** 2 + (y - cx) ** 2 <= r * r;
+    buf[i] = buf[i + 1] = buf[i + 2] = 0;          // 黑（模板图，颜色由系统决定）
+    buf[i + 3] = inside ? 255 : 0;                  // alpha 圆形
+  }
+  const img = nativeImage.createFromBuffer(buf, { width: s, height: s });
+  if (process.platform === 'darwin') img.setTemplateImage(true);
+  return img;
+}
 function trayIcon() {
   const p = path.join(__dirname, 'assets', 'tray.png');
   try {
-    const img = nativeImage.createFromPath(p);
-    if (!img.isEmpty()) { if (process.platform === 'darwin') img.setTemplateImage(false); return img; }
+    let img = nativeImage.createFromPath(p);
+    if (!img.isEmpty()) {
+      // 缩到菜单栏标准尺寸；用模板图（仅取 alpha 形状），macOS 自动适配深/浅色，永远可见
+      img = img.resize({ width: 18, height: 18 });
+      if (process.platform === 'darwin') img.setTemplateImage(true);
+      return img;
+    }
   } catch {}
-  // 兜底：1x1 占位，避免崩
-  return nativeImage.createEmpty();
+  return fallbackTrayIcon();
 }
 const CONN_PHASE_LABEL = {
   disabled: '', probing: '探测中…', tunneling: 'SSH 隧道连接中…',
