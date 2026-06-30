@@ -150,6 +150,11 @@ function startLocalAgent() {
     } else {
       localAgent = cp.fork(serverPath, [], { env: { ...env, ELECTRON_RUN_AS_NODE: '1' }, stdio: 'ignore' });
     }
+    // fork 失败(如 EAGAIN)同样是异步 error 事件，不监听会变成未捕获异常崩主进程
+    if (localAgent && localAgent.on) localAgent.on('error', (e) => {
+      localAgent = null;
+      notify('Claude Pet', `本地 agent 异常退出：${e.message}`, true);
+    });
   } catch (e) {
     localAgent = null;
     notify('Claude Pet', `本地 agent 启动失败：${e.message}`, true);
@@ -433,7 +438,11 @@ function openConfig() {
 function playSound(name) {
   if (process.platform !== 'darwin') return;
   const file = `/System/Library/Sounds/${name}.aiff`;
-  try { cp.spawn('afplay', [file], { stdio: 'ignore', detached: true }).unref(); } catch {}
+  try {
+    const child = cp.spawn('afplay', [file], { stdio: 'ignore', detached: true });
+    child.on('error', () => {}); // spawn 失败(如 EAGAIN)是异步 error 事件，try/catch 抓不到，必须监听否则会变成未捕获异常崩主进程
+    child.unref();
+  } catch {}
 }
 function notify(title, body, silent) {
   if (!Notification.isSupported()) return;
